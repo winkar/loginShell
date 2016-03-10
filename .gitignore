@@ -1,2 +1,8 @@
 *.pyc
 .idea
+download
+apk.json
+job
+*.rb
+Automator.iml
+apk

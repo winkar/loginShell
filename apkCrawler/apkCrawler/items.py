@@ -13,4 +13,5 @@ class ApkItem(scrapy.Item):
     # name = scrapy.Field()
     package = scrapy.Field()
     url = scrapy.Field()
-    download_link = scrapy.Field()
+    file_urls = scrapy.Field()
+    files = scrapy.Field()

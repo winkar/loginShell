@@ -61,9 +61,11 @@ NEWSPIDER_MODULE = 'apkCrawler.spiders'
 
 # Configure item pipelines
 # See http://scrapy.readthedocs.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    'apkCrawler.pipelines.SomePipeline': 300,
-#}
+ITEM_PIPELINES = {
+   # 'apkCrawler.pipelines.SomePipeline': 300,
+   'scrapy.pipelines.files.FilesPipeline' : 100
+}
+FILES_STORE = '/Users/WinKaR/Documents/lab/loginShell/apkCrawler/download'
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See http://doc.scrapy.org/en/latest/topics/autothrottle.html
