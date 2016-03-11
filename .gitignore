@@ -6,3 +6,4 @@ job
 *.rb
 Automator.iml
 apk
+Automator/target
