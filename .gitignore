@@ -3,7 +3,10 @@
 download
 apk.json
 job
-*.rb
+# *.rb
 Automator.iml
 apk
 Automator/target
+.tag*
+log
+tmp
