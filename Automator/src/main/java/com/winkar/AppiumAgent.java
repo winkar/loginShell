@@ -1,7 +1,9 @@
 package com.winkar;
 
+import io.appium.java_client.AppiumDriver;
 import io.appium.java_client.android.AndroidDriver;
 import io.appium.java_client.android.AndroidElement;
+import org.apache.log4j.Logger;
 import org.openqa.selenium.By;
 import org.openqa.selenium.OutputType;
 import org.openqa.selenium.remote.DesiredCapabilities;
@@ -19,7 +21,7 @@ import java.util.List;
 public class AppiumAgent {
     private AndroidDriver driver;
     private int screenShotCounter;
-
+    final static Logger log = Logger.getLogger(Automator.class.getName());
 
     public AppiumAgent(String appPath) {
         try {
@@ -31,22 +33,25 @@ public class AppiumAgent {
             capabilities.setCapability("app", appPath);
             driver = new AndroidDriver(new URL("http://localhost:4723/wd/hub"), capabilities);
 
+//            log.info(driver.getAppStrings());
         } catch (MalformedURLException e) {
         }
     }
 
-    public String formatAndroidElement(AndroidElement element) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(element.getTagName())
-                .append("\n")
-                .append("\tId:" + element.getId())
-                .append("\n")
-                .append("\tText:" + element.getText())
-                .append("\n\tClickable:" + element.getAttribute("clickable"))
-                .append("\n");
+    public static String formatAndroidElement(AndroidElement element) {
+//        StringBuilder sb = new StringBuilder();
+//        sb.append(element.getTagName())
+//                .append("\n")
+//                .append("\tId:" + element.getId())
+//                .append("\n")
+//                .append("\tText:" + element.getText())
+//                .append("\n\tClickable:" + element.getAttribute("clickable"))
+//                .append("\n");
 
-        return sb.toString();
+//        return sb.toString();
+        return String.format("Tag: %s; Id %s; Text %s", element.getTagName(), element.getId(), element.getText());
     }
+
 
     public void takeScreenShot(String logDir) {
         OutputStream os = null;
@@ -90,6 +95,10 @@ public class AppiumAgent {
 
     public void quit() {
         driver.quit();
+    }
+
+    public void closeApp() {
+        driver.closeApp();
     }
 
     public void installApp(String apkPath) {

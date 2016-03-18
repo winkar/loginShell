@@ -2,6 +2,7 @@ package com.winkar;
 
 import io.appium.java_client.android.AndroidElement;
 import io.appium.java_client.android.AndroidKeyCode;
+import org.apache.log4j.Logger;
 import org.openqa.selenium.By;
 
 import java.io.File;
@@ -17,6 +18,7 @@ import java.util.List;
 public class AppTraversal {
     private static int MAX_DEPTH;
     private static List<String> elementBlackList;
+    final static Logger log = Logger.getLogger(Automator.class.getName());
 
     static {
         MAX_DEPTH = 4;
@@ -31,13 +33,9 @@ public class AppTraversal {
     private String appPackage;
     private String appMainActivity;
     private AppiumAgent appiumAgent;
-    private int screenShotCounter;
+
     AppTraversal(String appPath) {
         this.appPath = appPath;
-    }
-
-    private void log(Object e) {
-        System.out.println(e);
     }
 
     private String getLogDir() {
@@ -46,21 +44,19 @@ public class AppTraversal {
 
     private boolean createLogDir() {
         File file;
-        try {
-            LOG_DIR = "log" + File.separator + appPackage + File.separator + new Date().toString().replace(' ', '_');
-            file = new File(LOG_DIR);
-            return file.mkdirs();
-        } finally {
-            file = null;
-        }
+        LOG_DIR = "log" + File.separator + appPackage + File.separator + new Date().toString().replace(' ', '_');
+        file = new File(LOG_DIR);
+        return file.mkdirs();
     }
+
 
 
     public void traversal(String currentActivity, int depth) {
         if (depth > MAX_DEPTH) {
             return;
         }
-        log("\n\nat " + currentActivity);
+        log.info("Current at "+ currentActivity);
+        log.info("Current traversal depth is "+ depth);
 
         appiumAgent.takeScreenShot(getLogDir());
 
@@ -70,14 +66,23 @@ public class AppTraversal {
             AndroidElement element = ((AndroidElement) obj);
             if (!elementBlackList.contains(element.getText())) {
                 element.click();
+                log.info("Clicked " + appiumAgent.formatAndroidElement(element));
                 if (!appiumAgent.currentActivity().equals(currentActivity)) {
-                    log(appiumAgent.currentActivity() + "\t" + currentActivity);
+                    log.info("Jumped to activity " + appiumAgent.currentActivity());
                     traversal(appiumAgent.currentActivity(), depth + 1);
                 }
             }
         }
+
+        if (depth==0) {
+            appiumAgent.closeApp();
+            return ;
+        }
+
         while (appiumAgent.currentActivity().equals(currentActivity)) {
             appiumAgent.pressKeyCode(AndroidKeyCode.BACK);
+            log.info("Back pressed");
+            log.info("Jump to activity "+ appiumAgent.currentActivity());
         }
     }
 
@@ -86,19 +91,12 @@ public class AppTraversal {
         appiumAgent = new AppiumAgent(appPath);
         try {
             appPackage = AndroidUtils.getPackageName(appPath);
-//            appMainActivity = AndroidUtils.getMainActivity(appPath);
-
+            log.info("Get package Name: " + appPackage);
             if (!createLogDir()) {
                 throw new IOException("Directory not created");
             }
-
-//            appiumAgent.installApp(appPath);
-
             currentActivity = appiumAgent.currentActivity();
-
-//            appiumAgent.startActivity(appPackage, appMainActivity);
-
-            log("start traversal");
+            log.info("Traversal started");
             traversal(currentActivity, 0);
         } catch (org.openqa.selenium.WebDriverException e) {
             e.printStackTrace();

@@ -13,7 +13,7 @@ import java.util.List;
 /**
  * Created by WinKaR on 16/3/15.
  */
-public class MainTester {
+public class MultiAppTester {
 
     static Logger log = Logger.getLogger(Automator.class.getName());
     private static List<String> appBlackList;
@@ -27,7 +27,7 @@ public class MainTester {
 
     private String apkDirectoryRoot;
 
-    public MainTester(String apkDirectoryRoot) {
+    public MultiAppTester(String apkDirectoryRoot) {
         this.apkDirectoryRoot = apkDirectoryRoot;
     }
 
@@ -37,9 +37,10 @@ public class MainTester {
 
         for (String path : apkRoot.list()) {
             if (!appBlackList.contains(path)) {
-                log.info(String.format("Test apk %s", path));
+                log.info(String.format("Testing apk %s", path));
                 AppTraversal appTraversal = new AppTraversal(apkDirectoryRoot + File.separator + path);
                 appTraversal.start();
+                log.info(String.format("Stop testing apk %s", path));
             }
 
         }
