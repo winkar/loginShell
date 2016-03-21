@@ -1,48 +1,41 @@
 package com.winkar
 
-import java.io.File
-import java.net.{MalformedURLException, URL}
+import java.net.URL
+import java.nio.file.Paths
 
 import io.appium.java_client.android.{AndroidDriver, AndroidElement}
+import org.apache.commons.io.FileUtils
 import org.apache.log4j.Logger
-import org.openqa.selenium.{By, OutputType}
 import org.openqa.selenium.remote.DesiredCapabilities
+import org.openqa.selenium.{By, OutputType}
 
 import scala.collection.JavaConverters._
-import java.nio.file.{Path, Paths};
+
 
 class AppiumAgent(val appPath: String) {
-  try {
-    val capabilities: DesiredCapabilities = new DesiredCapabilities
-    capabilities.setCapability("deviceName", "Galaxy Note4")
-    capabilities.setCapability("platformVersion", "4.4")
-    capabilities.setCapability("platformName", "Android")
-    capabilities.setCapability("app", appPath)
-    driver = new AndroidDriver[AndroidElement](new URL("http://localhost:4723/wd/hub"), capabilities)
-  }
-  catch {
-    case e: MalformedURLException => {
-      e.printStackTrace
-    }
-  }
+  val capabilities: DesiredCapabilities = new DesiredCapabilities
+  capabilities.setCapability("deviceName", "Galaxy Note4")
+  capabilities.setCapability("platformVersion", "4.4")
+  capabilities.setCapability("platformName", "Android")
+  capabilities.setCapability("app", appPath)
+  val driver = new AndroidDriver[AndroidElement](new URL("http://localhost:4723/wd/hub"), capabilities)
 
-  private val log: Logger = Logger.getLogger(Automator.getClass.getName)
-  private var driver: AndroidDriver[AndroidElement] = null
-  private val screenShotCounter: Int = 0
+
+  val log: Logger = Logger.getLogger(Automator.getClass.getName)
+  var screenShotCounter: Int = 0
+
+
 
   def takeScreenShot(logDir: String) {
-    val screenShotFile: File = driver.getScreenshotAs(OutputType.FILE)
+    val screenShotFile: Array[Byte] = driver.getScreenshotAs(OutputType.BYTES)
 
-    if (!screenShotFile.renameTo(Paths.get(logDir, s"$screenShotCounter.png").toFile)) {
-      log.info("Cannot rename file")
-    }
-    if (!screenShotFile.createNewFile()) {
-      log.info("Cannot create file")
-    }
+    FileUtils.writeByteArrayToFile(Paths.get(logDir, s"$screenShotCounter.png").toFile, screenShotFile)
+    screenShotCounter += 1
   }
 
   def currentActivity: String = driver.currentActivity
 
+  def currentPackage: String = AndroidUtils.getCurrentPackage
 
   def pressKeyCode(key: Int) = driver.pressKeyCode(key)
 
@@ -59,8 +52,5 @@ class AppiumAgent(val appPath: String) {
 
   def startActivity(appPackage: String, activity: String) = driver.startActivity(appPackage, activity)
 
-  def formatAndroidElement(element: AndroidElement): String = String.format(s"Tag: ${element.getTagName}; " +
-    s"Id ${element.getId}; " +
-    s"Text ${element.getText}")
 
 }
