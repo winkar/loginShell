@@ -39,14 +39,28 @@ class AppTraversal private[winkar](var appPath: String) {
     log.info("Current at " + currentActivity)
     log.info("Current traversal depth is " + depth)
     appiumAgent.takeScreenShot(getLogDir)
+
+//    val pageSource: String = appiumAgent.driver.getPageSource
+
+
     val clickableElements: List[AndroidElement] = appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
     for (element <- clickableElements) {
       if (!elementBlackList.contains(element.getText)) {
+        val formattedElement: String = appiumAgent.formatAndroidElement(element)
         element.click
-        log.info("Clicked " + appiumAgent.formatAndroidElement(element))
+        log.info("Clicked " + formattedElement)
+
+
         if (appiumAgent.currentActivity != currentActivity) {
           log.info("Jumped to activity " + appiumAgent.currentActivity)
-          traversal(appiumAgent.currentActivity, depth + 1)
+
+          val currentPackage = appiumAgent.currentPackage
+          if (currentPackage != appPackage) {
+            log.info("Jumped out of App")
+            log.info(s"Current at app ${currentPackage}")
+            log.info("Back to previous")
+            while (appiumAgent.currentPackage != appPackage) back
+          } else traversal(appiumAgent.currentActivity, depth + 1)
         }
       }
     }
@@ -55,13 +69,13 @@ class AppTraversal private[winkar](var appPath: String) {
       return
     }
     while (appiumAgent.currentActivity == currentActivity) {
-      {
-        appiumAgent.pressKeyCode(AndroidKeyCode.BACK)
-        log.info("Back pressed")
-        log.info("Jump to activity " + appiumAgent.currentActivity)
-      }
+      back
+      log.info("Back pressed")
+      log.info("Jump to activity " + appiumAgent.currentActivity)
     }
   }
+
+  def back = appiumAgent.pressKeyCode(AndroidKeyCode.BACK)
 
   @throws[IOException]
   def start {
@@ -69,6 +83,7 @@ class AppTraversal private[winkar](var appPath: String) {
     try {
       appPackage = AndroidUtils.getPackageName(appPath)
       log.info("Get package Name: " + appPackage)
+
       if (!createLogDir) {
         throw new IOException("Directory not created")
       }
@@ -77,10 +92,10 @@ class AppTraversal private[winkar](var appPath: String) {
       traversal(currentActivity, 0)
     }
     catch {
-      case e: WebDriverException => {
-        e.printStackTrace
-      }
+      case e: WebDriverException => e.printStackTrace
+      case e: Exception => e.printStackTrace
     } finally {
+      appiumAgent.takeScreenShot(getLogDir)
       appiumAgent.removeApp(appPackage)
       appiumAgent.quit
     }
