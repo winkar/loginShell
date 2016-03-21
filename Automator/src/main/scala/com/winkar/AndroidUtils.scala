@@ -14,4 +14,13 @@ object AndroidUtils {
     " | awk -F\" \" '/launchable-activity/ {print $2}'  " +
     " |awk -F\"'\" \'/name=/ {print $2}'")
 
+  def getCurrentPackage() = "/usr/local/bin/adb shell dumpsys window windows "
+    .!!
+    .split("\n")
+    .filter(_.contains("mCurrentFocus"))
+    .take(1)(0)
+    .split("/")(0)
+    .reverse.split(" ")(0)
+    .reverse
+
 }

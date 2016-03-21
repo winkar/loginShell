@@ -9,12 +9,12 @@ import org.apache.log4j.xml.DOMConfigurator
 
 
 
-object Automator {
-  private[winkar] val log: Logger = Logger.getLogger(Automator.getClass.getName)
-  val apkDirectoryPath: String = "/Users/WinKaR/Documents/lab/loginShell/apkCrawler/download/full"
-  val apkPath: String = "/Users/WinKaR/Documents/lab/loginShell/apk/taobao.apk"
+object Automator extends App {
+  override def main(args: Array[String]): Unit = {
+    val log: Logger = Logger.getLogger(Automator.getClass.getName)
+    val apkDirectoryPath: String = "/Users/WinKaR/Documents/lab/loginShell/apkCrawler/download/full"
+    val apkPath: String = "/Users/WinKaR/Documents/lab/loginShell/apk/com.taobao.taobao.apk"
 
-  def main(args: Array[String]): Unit = {
     DOMConfigurator.configureAndWatch("config/log4j.xml")
     log.info("Automator started")
     new SingleAppTester(apkPath).startTest
