@@ -9,7 +9,8 @@ import org.apache.log4j.Logger
 import org.openqa.selenium.remote.DesiredCapabilities
 import org.openqa.selenium.{By, OutputType}
 
-import scala.collection.JavaConverters._;
+import scala.collection.JavaConverters._
+
 
 class AppiumAgent(val appPath: String) {
   val capabilities: DesiredCapabilities = new DesiredCapabilities
@@ -22,6 +23,8 @@ class AppiumAgent(val appPath: String) {
 
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   var screenShotCounter: Int = 0
+
+
 
   def takeScreenShot(logDir: String) {
     val screenShotFile: Array[Byte] = driver.getScreenshotAs(OutputType.BYTES)
@@ -49,8 +52,5 @@ class AppiumAgent(val appPath: String) {
 
   def startActivity(appPackage: String, activity: String) = driver.startActivity(appPackage, activity)
 
-  def formatAndroidElement(element: AndroidElement): String = String.format(s"Tag: ${element.getTagName}; " +
-    s"Id ${element.getId}; " +
-    s"Text ${element.getText}; " +
-    s"resourceId ${element.getAttribute("resourceId")}")
+
 }
