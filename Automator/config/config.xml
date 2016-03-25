@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Automator>
+    <!--<Mode>MultiAppTest</Mode>-->
+    <Mode>SingleAppTest</Mode>
+    <ApkDirectoryRoot>/Users/WinKaR/Documents/lab/loginShell/apkCrawler/download/full</ApkDirectoryRoot>
+    <ApkName>01f1c133417d023077c7caf560c58a59b5cf426e.apk</ApkName>
+</Automator>
