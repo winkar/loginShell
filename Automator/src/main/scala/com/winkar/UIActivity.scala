@@ -11,8 +11,4 @@ class UIActivity(activityName: String) {
   val clickCompleted: Boolean = false
 
   val clickableUiElements = Map[String, UiElement]()
-
-  def addElements(elements: List[UiElement]): Unit = {
-    elements.foreach(elm => clickableUiElements.update(elm.url, elm))
-  }
 }

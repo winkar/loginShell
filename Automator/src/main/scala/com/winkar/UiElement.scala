@@ -1,6 +1,8 @@
 package com.winkar
 
 import io.appium.java_client.android.AndroidElement
+import util.matching.Regex
+
 
 
 
@@ -8,7 +10,19 @@ import io.appium.java_client.android.AndroidElement
 /**
   * Created by WinKaR on 16/3/22.
   */
-class UiElement(element: AndroidElement, currentActivity: UIActivity) {
+
+
+object UiElement {
+  def formatAndroidElement(elm:AndroidElement) : String =  s"Tag: ${elm.getTagName}; " +
+    s"Text ${elm.getText}; " +
+    s"resourceId ${elm.getAttribute("resourceId")}"
+
+  def toUrl(activity: String, elm: AndroidElement): String = {
+    s"${activity}_${formatAndroidElement(elm)}"
+  }
+}
+
+class UiElement(element: AndroidElement, activity: String) {
   var androidElement: AndroidElement = element
 
   object Importance {
@@ -21,29 +35,62 @@ class UiElement(element: AndroidElement, currentActivity: UIActivity) {
     Importance.Default
   }
 
-  var willChangeCurrentUI: Boolean = false
-  var isBack:  Boolean = false
-
   val id = element.getId
   val text = element.getText
-  val tagName = element.getTagName
-  val resourceId = element.getAttribute("resourceId")
+  val tagName: String = element.getTagName
+  val resourceId: String = element.getAttribute ("resourceId") match {
+      case null => ""
+      case s: String => s
+    }
 
-  var destActivity: UIActivity = null
-  var srcActivity: UIActivity = currentActivity
-  val url: String = {
-    s"${srcActivity}_${toString}"
-  }
+  val noClickTags = Array(
+    "android.widget.EditText",
+    "android.widget.Spinner"
+  )
+
+  val backRegex = Array(
+    """.*[Bb]ack.*""".r,
+    """.*nav_left.*""".r
+  )
+
+  val blackListRegex = Array(
+     """否|([Nn]o)""".r,
+     """[cC]lear""".r,
+    """安装""".r,
+    """[Ii]nstall""".r,
+    """下载""".r,
+    """[dD]ownload""".r,
+    """下载""".r
+  )
+
+  var willChangeCurrentUI: Boolean = false
+  var isBack:  Boolean = backRegex.exists(_.findFirstIn(resourceId).isDefined)
+  val validTag: Boolean = !noClickTags.contains(tagName)
+
+
+  def isInBlackList(s : String): Boolean = blackListRegex.exists(_.findFirstIn(s).isDefined)
+
+  val inBlackList : Boolean = List(resourceId, text).exists(isInBlackList)
+
+  var destActivity: String = null
+  var srcActivity: String = activity
+  val url = toString
   var clicked = false
-
+//  val focusable = element.getAttribute("focusable")=="true"
 
   def click = {
     element.click
     clicked = true
   }
 
+
+  def isEmpty = (text + resourceId).trim.isEmpty
+
+  //TODO 过滤focusable=false的控件
+  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !isEmpty
+
+
   override def toString: String = String.format(s"Tag: ${tagName}; " +
-    s"Id ${id}; " +
     s"Text ${text}; " +
     s"resourceId ${resourceId}")
 }
