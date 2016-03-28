@@ -4,7 +4,6 @@ import java.io.{File, IOException}
 import java.nio.file.Paths
 import java.util.Date
 
-import io.appium.java_client.android.{AndroidElement, AndroidKeyCode}
 import org.apache.log4j.Logger
 import org.openqa.selenium.{By, WebDriverException}
 
@@ -31,7 +30,7 @@ class AppTraversal private[winkar](var appPath: String) {
   var currentDepth = 0
 
 
-  def getClickableElements: List[UiElement] = {
+  def getClickableElements(retryTime :Int = 1): List[UiElement] = {
     val activity = appiumAgent.driver.currentActivity
 
     //TODO 生成UiElement的逻辑中有部分代码被重复调用,可以考虑坐下修改进行简化
@@ -40,7 +39,23 @@ class AppTraversal private[winkar](var appPath: String) {
       .map(
         elm => elements.getOrElseUpdate(elm._2, new UiElement(elm._1, activity))
       )
-    clickables.filter(_.shouldClick)
+
+    clickables.filter(_.shouldClick) match {
+      case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
+      case cl: List[UiElement] if cl.isEmpty  => {
+        log.info("Cannot find any element; Sleep and try again")
+        Thread.sleep(3000)
+        getClickableElements(0)
+      }
+    }
+  }
+
+  def checkPermissions: Unit ={
+    log.info("Checking All Permissions")
+//    appiumAgent.driver.findElementByClassName("android.widget.CheckBox").click
+    // TODO 是否可能默认没有check上?
+    log.info("Confirm")
+    appiumAgent.driver.findElementByClassName("android.widget.Button").click
   }
 
   def traversal(currentActivity: String) {
@@ -53,12 +68,12 @@ class AppTraversal private[winkar](var appPath: String) {
     depth match {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ => {
-        var clickableElements = getClickableElements
+        var clickableElements = getClickableElements()
         log.info(s"${clickableElements.size} clickable elements found on Acitivity")
 
         clickableElements.foreach( element => {
           try {
-            log.info("Clicked " + element.toString)
+            log.info("Click " + element.toString)
             element.click
 
             val appActivity = appiumAgent.currentActivity
@@ -68,6 +83,7 @@ class AppTraversal private[winkar](var appPath: String) {
               log.info("Jumped to activity " + appiumAgent.currentActivity)
 
               appiumAgent.currentPackage match {
+                case "com.sec.android.app.capabilitymanager" => checkPermissions
                 case pkg:String if pkg!=appPackage => {
                   log.info("Jumped out of App")
                   log.info(s"Current at app ${pkg}")
@@ -84,8 +100,10 @@ class AppTraversal private[winkar](var appPath: String) {
           } catch {
             // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
             case e :org.openqa.selenium.NoSuchElementException => {
-              clickableElements = getClickableElements
+              //TODO 此处应check 是否还在原来的进程 check按钮是否点击完
+              log.info("Cannot locate element")
               log.info("Reload clickable elements")
+              clickableElements = getClickableElements()
               log.info(s"${clickableElements.size} elements found")
             }
           }
@@ -106,7 +124,6 @@ class AppTraversal private[winkar](var appPath: String) {
 //  def back = appiumAgent.pressKeyCode(AndroidKeyCode.BACK)
   def back = appiumAgent.driver.navigate().back()
 
-  @throws[IOException]
   def start {
     appiumAgent = new AppiumAgent(appPath)
     try {
