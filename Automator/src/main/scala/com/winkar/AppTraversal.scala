@@ -11,116 +11,100 @@ import org.openqa.selenium.{By, WebDriverException}
 import scala.collection.mutable.Map
 
 class AppTraversal private[winkar](var appPath: String) {
-  private var LOG_DIR: String = null
-  private var currentActivity: String = null
+  var logDir: String = null
   private var appPackage: String = null
   private var appiumAgent: AppiumAgent = null
-  val MAX_DEPTH = 4
+  val maxDepth = 4
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
-  val elementBlackList = Array("否")
-
-
-  private def getLogDir: String = LOG_DIR
-
+  val depthMap = Map[String,Int]()
 
   private def createLogDir: Boolean = {
     var file: File = null
-    LOG_DIR = s"log${File.separator}$appPackage${File.separator}${new Date().toString.replace(' ', '_')}"
-
-    LOG_DIR = Paths.get("log", appPackage, s"${new Date().toString.replace(' ', '_')}").toString
-
-    file = new File(LOG_DIR)
+    logDir = s"log${File.separator}$appPackage${File.separator}${new Date().toString.replace(' ', '_')}"
+    logDir = Paths.get("log", appPackage, s"${new Date().toString.replace(' ', '_')}").toString
+    file = new File(logDir)
     file.mkdirs
   }
 
-  val activities = Map[String, UIActivity]()
+  val activityVisited = Map[String, Boolean]()
+  val elements = Map[String, UiElement]()
+  var currentDepth = 0
 
-  def shouldClick(element: UiElement): Boolean = {
-    !elementBlackList.contains(element.text) && !element.clicked
+
+  def getClickableElements: List[UiElement] = {
+    val activity = appiumAgent.driver.currentActivity
+
+    //TODO 生成UiElement的逻辑中有部分代码被重复调用,可以考虑坐下修改进行简化
+    val clickables = appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
+      .map( elm => (elm , UiElement.toUrl(activity, elm)))
+      .map(
+        elm => elements.getOrElseUpdate(elm._2, new UiElement(elm._1, activity))
+      )
+    clickables.filter(_.shouldClick)
   }
 
-  def updateElements(uIActivity: UIActivity): Unit = {
-
-    uIActivity.addElements(
-      appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
-        .map(new UiElement(_, uIActivity)))
-
-  }
-
-  def backToPreviousActivity(currentActivity: String): Unit = {
-    // 很多Activity无法通过一次Back返回. 需要判断是否成功back
-    while (appiumAgent.currentActivity == currentActivity) {
-      back
-      log.info("Back pressed")
-    }
-    log.info("Jump to activity " + appiumAgent.currentActivity)
-  }
-
-  def traversal(currentActivity: String, depth: Int) {
-    // 限制深度遍历最大深度
-    if (depth > MAX_DEPTH) {
-      log.info("Exceed maximum depth; Back")
-      backToPreviousActivity(currentActivity)
-      return
-    }
-
-    // 将当前activity加入集合
-
-    if (activities.contains(currentActivity)) {
-      log.info(s"Activity ${currentActivity} has been visited; Back to previous")
-      backToPreviousActivity(currentActivity)
-      return
-    }
-
-
+  def traversal(currentActivity: String) {
+    val depth = depthMap.getOrElseUpdate(currentActivity, currentDepth)
     log.info("Current at " + currentActivity)
     log.info("Current traversal depth is " + depth)
-    appiumAgent.takeScreenShot(getLogDir)
+    appiumAgent.takeScreenShot(logDir)
 
-    val currentUiActivity = new UIActivity(currentActivity)
 
-    activities.update(currentActivity, currentUiActivity)
+    depth match {
+      case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
+      case _ => {
+        var clickableElements = getClickableElements
+        log.info(s"${clickableElements.size} clickable elements found on Acitivity")
 
-    updateElements(currentUiActivity)
-    log.info(s"${currentUiActivity.clickableUiElements.size} elements found on Acitivity")
+        clickableElements.foreach( element => {
+          try {
+            log.info("Clicked " + element.toString)
+            element.click
 
-    currentUiActivity.clickableUiElements.values.foreach( element => {
-      try {
-        if (shouldClick(element)) {
-          val formattedElement: String = element.toString
-          element.click
-          log.info("Clicked " + formattedElement)
+            val appActivity = appiumAgent.currentActivity
 
-          val appActivity = appiumAgent.currentActivity
+            // TODO: 对Activity进行过滤
+            if (appActivity != currentActivity) {
+              log.info("Jumped to activity " + appiumAgent.currentActivity)
 
-          if (appActivity != currentActivity) {
-            log.info("Jumped to activity " + appiumAgent.currentActivity)
-
-            val currentPackage = appiumAgent.currentPackage
-            if (currentPackage != appPackage) {
-              log.info("Jumped out of App")
-              log.info(s"Current at app ${currentPackage}")
-              log.info("Back to previous")
-              while (appiumAgent.currentPackage != appPackage) back
-            } else
-              traversal(appActivity, depth + 1)
+              appiumAgent.currentPackage match {
+                case pkg:String if pkg!=appPackage => {
+                  log.info("Jumped out of App")
+                  log.info(s"Current at app ${pkg}")
+                  log.info("Back to previous")
+                  while (appiumAgent.currentPackage != appPackage) back
+                }
+                case _ => {
+                  currentDepth += 1
+                  traversal(appActivity)
+                  currentDepth -= 1
+                }
+              }
+            }
+          } catch {
+            // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
+            case e :org.openqa.selenium.NoSuchElementException => {
+              clickableElements = getClickableElements
+              log.info("Reload clickable elements")
+              log.info(s"${clickableElements.size} elements found")
+            }
           }
-        }
-      } catch {
-        // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
-        case e :org.openqa.selenium.NoSuchElementException => updateElements(currentUiActivity)
+        })
       }
-    })
-
-    if (depth == 0) {
-      appiumAgent.closeApp
-      return
     }
 
-    backToPreviousActivity(currentActivity)
+    depth match {
+      case 0 => {
+        appiumAgent.closeApp
+        log.info("Close App")
+      }
+      // TODO 需要处理一次back无法跳转activity, 说明该activity无法back
+      case _ => back
+    }
   }
 
-  def back = appiumAgent.pressKeyCode(AndroidKeyCode.BACK)
+//  def back = appiumAgent.pressKeyCode(AndroidKeyCode.BACK)
+  def back = appiumAgent.driver.navigate().back()
 
   @throws[IOException]
   def start {
@@ -132,15 +116,14 @@ class AppTraversal private[winkar](var appPath: String) {
       if (!createLogDir) {
         throw new IOException("Directory not created")
       }
-      currentActivity = appiumAgent.currentActivity
       log.info("Traversal started")
-      traversal(currentActivity, 0)
+      traversal(appiumAgent.currentActivity)
     }
     catch {
       case e: WebDriverException => e.printStackTrace
       case e: Exception => e.printStackTrace
     } finally {
-      appiumAgent.takeScreenShot(getLogDir)
+      appiumAgent.takeScreenShot(logDir)
       appiumAgent.removeApp(appPackage)
       appiumAgent.quit
     }

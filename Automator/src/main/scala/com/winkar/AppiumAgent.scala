@@ -51,6 +51,4 @@ class AppiumAgent(val appPath: String) {
   def removeApp(bundleId: String) = driver.removeApp(bundleId)
 
   def startActivity(appPackage: String, activity: String) = driver.startActivity(appPackage, activity)
-
-
 }
