@@ -17,6 +17,9 @@ class AppTraversal private[winkar](var appPath: String) {
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = Map[String,Int]()
 
+
+  class ShouldRestartAppException extends RuntimeException
+
   private def createLogDir: Boolean = {
     var file: File = null
     logDir = s"log${File.separator}$appPackage${File.separator}${new Date().toString.replace(' ', '_')}"
@@ -58,11 +61,13 @@ class AppTraversal private[winkar](var appPath: String) {
     appiumAgent.driver.findElementByClassName("android.widget.Button").click
   }
 
+
   def traversal(currentActivity: String) {
     val depth = depthMap.getOrElseUpdate(currentActivity, currentDepth)
     log.info("Current at " + currentActivity)
     log.info("Current traversal depth is " + depth)
     appiumAgent.takeScreenShot(logDir)
+
 
 
     depth match {
@@ -71,43 +76,58 @@ class AppTraversal private[winkar](var appPath: String) {
         var clickableElements = getClickableElements()
         log.info(s"${clickableElements.size} clickable elements found on Acitivity")
 
-        clickableElements.foreach( element => {
-          try {
-            log.info("Click " + element.toString)
-            element.click
+        try {
+          clickableElements.foreach(element => {
+            try {
+              log.info("Click " + element.toString)
+              element.click
 
-            val appActivity = appiumAgent.currentActivity
+              val appActivity = appiumAgent.currentActivity
 
-            // TODO: 对Activity进行过滤
-            if (appActivity != currentActivity) {
-              log.info("Jumped to activity " + appiumAgent.currentActivity)
+              // TODO: 对Activity进行过滤
+              if (appActivity != currentActivity) {
+                log.info("Jumped to activity " + appiumAgent.currentActivity)
 
-              appiumAgent.currentPackage match {
-                case "com.sec.android.app.capabilitymanager" => checkPermissions
-                case pkg:String if pkg!=appPackage => {
-                  log.info("Jumped out of App")
-                  log.info(s"Current at app ${pkg}")
-                  log.info("Back to previous")
-                  while (appiumAgent.currentPackage != appPackage) back
-                }
-                case _ => {
-                  currentDepth += 1
-                  traversal(appActivity)
-                  currentDepth -= 1
+                appiumAgent.currentPackage match {
+                  case pkg: String if pkg != appPackage => {
+                    log.info("Jumped out of App")
+                    log.info(s"Current at app ${pkg}")
+
+                    if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions
+
+                    log.info("Try back to app")
+
+                    back
+
+                    appiumAgent.currentPackage match {
+                      case s:String if s == appPackage =>
+                      case _ => throw new ShouldRestartAppException
+                    }
+                  }
+                  case _ => {
+                    currentDepth += 1
+                    traversal(appActivity)
+                    currentDepth -= 1
+                  }
                 }
               }
+            } catch {
+              // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
+              case e: org.openqa.selenium.NoSuchElementException => {
+                //TODO 此处应check 是否还在原来的进程 check按钮是否点击完
+                log.info("Cannot locate element")
+                log.info("Reload clickable elements")
+                clickableElements = getClickableElements()
+                log.info(s"${clickableElements.size} elements found")
+              }
             }
-          } catch {
-            // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
-            case e :org.openqa.selenium.NoSuchElementException => {
-              //TODO 此处应check 是否还在原来的进程 check按钮是否点击完
-              log.info("Cannot locate element")
-              log.info("Reload clickable elements")
-              clickableElements = getClickableElements()
-              log.info(s"${clickableElements.size} elements found")
-            }
+          })
+        } catch {
+          case ex: ShouldRestartAppException => {
+            restartApp
+            traversal(appiumAgent.driver.currentActivity)
           }
-        })
+        }
       }
     }
 
@@ -121,8 +141,9 @@ class AppTraversal private[winkar](var appPath: String) {
     }
   }
 
-//  def back = appiumAgent.pressKeyCode(AndroidKeyCode.BACK)
-  def back = appiumAgent.driver.navigate().back()
+  def back = appiumAgent.driver.navigate.back
+
+  def restartApp = appiumAgent.driver.launchApp
 
   def start {
     appiumAgent = new AppiumAgent(appPath)

@@ -86,7 +86,6 @@ class UiElement(element: AndroidElement, activity: String) {
 
   def isEmpty = (text + resourceId).trim.isEmpty
 
-  //TODO 过滤focusable=false的控件
   def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !isEmpty
 
 
