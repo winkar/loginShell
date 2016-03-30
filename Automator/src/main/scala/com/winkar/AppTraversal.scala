@@ -4,16 +4,12 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 import java.nio.file.Paths
 import java.util.Date
 
-import akka.actor.Status.Success
-
-import scala.concurrent._
-import ExecutionContext.Implicits.global
-import scala.collection.JavaConverters._
 import org.apache.log4j.Logger
-import org.openqa.selenium.{By, WebDriverException}
+import org.openqa.selenium.By
 
 import scala.collection.mutable
-import scala.collection.mutable.Map
+import scala.concurrent._
+
 
 
 
@@ -23,9 +19,19 @@ class AppTraversal private[winkar](var appPath: String) {
   private var appiumAgent: AppiumAgent = null
   val maxDepth = 4
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
-  val depthMap = Map[String,Int]()
+  val depthMap = mutable.Map[String,Int]()
 
   var lastClickedElement : UiElement = null
+
+  val jumpStack = mutable.Stack[String]()
+
+  def lastActivity: String = {
+    if (jumpStack.isEmpty) {
+      ""
+    } else {
+      jumpStack.top
+    }
+  }
 
 
   class ShouldRestartAppException extends RuntimeException
@@ -41,8 +47,8 @@ class AppTraversal private[winkar](var appPath: String) {
     file.mkdirs
   }
 
-  val activityVisited = Map[String, Boolean]()
-  val elements = Map[String, UiElement]()
+  val activityVisited = mutable.Map[String, Boolean]()
+  val elements = mutable.Map[String, UiElement]()
   var currentDepth = 0
 
 
@@ -100,6 +106,11 @@ class AppTraversal private[winkar](var appPath: String) {
               lastClickedElement = element
 
               val appActivity = appiumAgent.currentActivity
+              element.destActivity = appActivity
+
+              if (element.destActivity==lastActivity) {
+                element.isBack = true
+              }
 
               // TODO: 对Activity进行过滤
               if (appActivity != currentActivity) {
@@ -122,7 +133,9 @@ class AppTraversal private[winkar](var appPath: String) {
                   }
                   case _ => {
                     currentDepth += 1
+                    jumpStack.push(currentActivity)
                     traversal(appActivity)
+                    jumpStack.pop()
                     currentDepth -= 1
                   }
                 }
