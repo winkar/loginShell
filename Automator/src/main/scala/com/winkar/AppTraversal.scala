@@ -10,15 +10,20 @@ import org.openqa.selenium.{By, WebDriverException}
 import scala.collection.mutable.Map
 
 class AppTraversal private[winkar](var appPath: String) {
-  var logDir: String = null
-  private var appPackage: String = null
+  var logDir: String = ""
+  private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
   val maxDepth = 4
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = Map[String,Int]()
 
+  var lastClickedElement : UiElement = null
+
 
   class ShouldRestartAppException extends RuntimeException
+  class LoginUiFoundException(loginUI: String) extends RuntimeException {
+    val loginActivity = loginUI
+  }
 
   private def createLogDir: Boolean = {
     var file: File = null
@@ -75,12 +80,16 @@ class AppTraversal private[winkar](var appPath: String) {
       case _ => {
         var clickableElements = getClickableElements()
         log.info(s"${clickableElements.size} clickable elements found on Acitivity")
+        if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentActivity)) {
+          throw new LoginUiFoundException(currentActivity)
+        }
 
         try {
           clickableElements.foreach(element => {
             try {
               log.info("Click " + element.toString)
               element.click
+              lastClickedElement = element
 
               val appActivity = appiumAgent.currentActivity
 
@@ -99,10 +108,9 @@ class AppTraversal private[winkar](var appPath: String) {
 
                     back
 
-                    appiumAgent.currentPackage match {
-                      case s:String if s == appPackage =>
-                      case _ => throw new ShouldRestartAppException
-                    }
+                    // 如果无法回到原App, 重新启动App
+                    if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
+
                   }
                   case _ => {
                     currentDepth += 1
@@ -159,6 +167,10 @@ class AppTraversal private[winkar](var appPath: String) {
     }
     catch {
       case e: WebDriverException => e.printStackTrace
+      case e: LoginUiFoundException => {
+        log.warn(s"Login Ui Found: ${e.loginActivity}")
+        appiumAgent.takeScreenShot(logDir)
+      }
       case e: Exception => e.printStackTrace
     } finally {
       appiumAgent.takeScreenShot(logDir)
