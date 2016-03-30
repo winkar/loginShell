@@ -66,7 +66,9 @@ class UiElement(element: AndroidElement, activity: String) {
 
   val backRegex = Array(
     """.*[Bb]ack.*""".r,
-    """.*nav_left.*""".r
+    """.*nav_left.*""".r,
+    """left_icon""".r,
+    """返回""".r
   )
 
   val blackListRegex = Array(
