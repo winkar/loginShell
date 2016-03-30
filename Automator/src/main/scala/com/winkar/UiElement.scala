@@ -1,8 +1,7 @@
 package com.winkar
 
 import io.appium.java_client.android.AndroidElement
-import util.matching.Regex
-
+import scala.collection.mutable
 
 
 
@@ -20,6 +19,19 @@ object UiElement {
   def toUrl(activity: String, elm: AndroidElement): String = {
     s"${activity}_${formatAndroidElement(elm)}"
   }
+
+  val visitedUrl = mutable.Set[String]()
+
+  def urlVisited(url: String): Boolean = {
+    if (visitedUrl.contains(url)) {
+      true
+    } else {
+      visitedUrl.add(url)
+      false
+    }
+  }
+
+
 }
 
 class UiElement(element: AndroidElement, activity: String) {
@@ -42,6 +54,10 @@ class UiElement(element: AndroidElement, activity: String) {
       case null => ""
       case s: String => s
     }
+
+
+  val contentDesc: String = element.getAttribute("name")
+
 
   val noClickTags = Array(
     "android.widget.EditText",
@@ -84,12 +100,13 @@ class UiElement(element: AndroidElement, activity: String) {
   }
 
 
-  def isEmpty = (text + resourceId).trim.isEmpty
+//  def isEmpty = (text + resourceId).trim.isEmpty
 
-  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !isEmpty
+  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !UiElement.urlVisited(this.toString)
 
 
-  override def toString: String = String.format(s"Tag: ${tagName}; " +
-    s"Text ${text}; " +
-    s"resourceId ${resourceId}")
+  override def toString: String = String.format(s"Tag:${tagName};" +
+    s"Text:${text};" +
+    s"resourceId:${resourceId};" +
+    s"contentDesc:${contentDesc};")
 }

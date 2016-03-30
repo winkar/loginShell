@@ -7,6 +7,7 @@ job
 Automator.iml
 apk
 Automator/target
+Automator/config/config.xml
 .tag*
 log
 tmp

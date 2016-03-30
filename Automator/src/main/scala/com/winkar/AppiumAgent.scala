@@ -6,7 +6,7 @@ import java.nio.file.Paths
 import io.appium.java_client.android.{AndroidDriver, AndroidElement}
 import org.apache.commons.io.FileUtils
 import org.apache.log4j.Logger
-import org.openqa.selenium.remote.DesiredCapabilities
+import org.openqa.selenium.remote.{CapabilityType, DesiredCapabilities}
 import org.openqa.selenium.{By, OutputType}
 
 import scala.collection.JavaConverters._

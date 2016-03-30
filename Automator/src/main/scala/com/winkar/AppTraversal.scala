@@ -4,9 +4,11 @@ import java.io.{File, IOException}
 import java.nio.file.Paths
 import java.util.Date
 
+import scala.collection.JavaConverters._
 import org.apache.log4j.Logger
 import org.openqa.selenium.{By, WebDriverException}
 
+import scala.collection.mutable
 import scala.collection.mutable.Map
 
 class AppTraversal private[winkar](var appPath: String) {
@@ -84,12 +86,20 @@ class AppTraversal private[winkar](var appPath: String) {
           throw new LoginUiFoundException(currentActivity)
         }
 
+//        log.info(new scala.xml.PrettyPrinter(80, 2).format(scala.xml.XML.loadString(appiumAgent.driver.getPageSource)))
+
+
+
         try {
           clickableElements.foreach(element => {
             try {
               log.info("Click " + element.toString)
               element.click
               lastClickedElement = element
+
+
+//              log.info(new scala.xml.PrettyPrinter(80, 2).format(scala.xml.XML.loadString(appiumAgent.driver.getPageSource)))
+
 
               val appActivity = appiumAgent.currentActivity
 
@@ -149,7 +159,10 @@ class AppTraversal private[winkar](var appPath: String) {
     }
   }
 
-  def back = appiumAgent.driver.navigate.back
+  def back = {
+    log.info("Back")
+    appiumAgent.driver.navigate().back()
+  }
 
   def restartApp = appiumAgent.driver.launchApp
 
