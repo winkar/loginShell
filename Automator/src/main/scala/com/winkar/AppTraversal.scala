@@ -1,15 +1,21 @@
 package com.winkar
 
-import java.io.{File, IOException}
+import java.io.{File, IOException, PrintWriter, StringWriter}
 import java.nio.file.Paths
 import java.util.Date
 
+import akka.actor.Status.Success
+
+import scala.concurrent._
+import ExecutionContext.Implicits.global
 import scala.collection.JavaConverters._
 import org.apache.log4j.Logger
 import org.openqa.selenium.{By, WebDriverException}
 
 import scala.collection.mutable
 import scala.collection.mutable.Map
+
+
 
 class AppTraversal private[winkar](var appPath: String) {
   var logDir: String = ""
@@ -86,20 +92,12 @@ class AppTraversal private[winkar](var appPath: String) {
           throw new LoginUiFoundException(currentActivity)
         }
 
-//        log.info(new scala.xml.PrettyPrinter(80, 2).format(scala.xml.XML.loadString(appiumAgent.driver.getPageSource)))
-
-
-
         try {
           clickableElements.foreach(element => {
             try {
               log.info("Click " + element.toString)
               element.click
               lastClickedElement = element
-
-
-//              log.info(new scala.xml.PrettyPrinter(80, 2).format(scala.xml.XML.loadString(appiumAgent.driver.getPageSource)))
-
 
               val appActivity = appiumAgent.currentActivity
 
@@ -166,9 +164,13 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def restartApp = appiumAgent.driver.launchApp
 
+
+  val traversalTimeout = 10
+
   def start {
     appiumAgent = new AppiumAgent(appPath)
     try {
+
       appPackage = AndroidUtils.getPackageName(appPath)
       log.info("Get package Name: " + appPackage)
 
@@ -176,18 +178,37 @@ class AppTraversal private[winkar](var appPath: String) {
         throw new IOException("Directory not created")
       }
       log.info("Traversal started")
-      traversal(appiumAgent.currentActivity)
+
+      import java.util.concurrent.{Callable, FutureTask, TimeUnit}
+      val traversalTask = new FutureTask(new Callable[Unit]  {
+        def call(): Unit = {
+          traversal(appiumAgent.currentActivity)
+        }
+      })
+
+      new Thread(traversalTask).start()
+
+      traversalTask.get(traversalTimeout, TimeUnit.MINUTES)
     }
     catch {
-      case e: WebDriverException => e.printStackTrace
       case e: LoginUiFoundException => {
         log.warn(s"Login Ui Found: ${e.loginActivity}")
-        appiumAgent.takeScreenShot(logDir)
       }
-      case e: Exception => e.printStackTrace
+      case e: TimeoutException => {
+        log.warn("Timeout!")
+      }
+
+      case e: Exception => {
+        val sw = new StringWriter
+        e.printStackTrace(new PrintWriter(sw))
+        log.warn(sw.toString)
+      }
     } finally {
+      log.info("Take screenShot on quit")
       appiumAgent.takeScreenShot(logDir)
+      log.info("Remove app from device")
       appiumAgent.removeApp(appPackage)
+      log.info("Quit")
       appiumAgent.quit
     }
   }
