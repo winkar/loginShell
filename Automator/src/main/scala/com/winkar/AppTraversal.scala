@@ -12,7 +12,6 @@ import scala.concurrent._
 
 
 
-
 class AppTraversal private[winkar](var appPath: String) {
   var logDir: String = ""
   private var appPackage: String = ""
@@ -25,7 +24,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
   val jumpStack = mutable.Stack[String]()
 
-  def lastActivity: String = {
+  def lastView: String = {
     if (jumpStack.isEmpty) {
       ""
     } else {
@@ -36,7 +35,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
   class ShouldRestartAppException extends RuntimeException
   class LoginUiFoundException(loginUI: String) extends RuntimeException {
-    val loginActivity = loginUI
+    val loginUi = loginUI
   }
 
   private def createLogDir: Boolean = {
@@ -47,20 +46,23 @@ class AppTraversal private[winkar](var appPath: String) {
     file.mkdirs
   }
 
-  val activityVisited = mutable.Map[String, Boolean]()
   val elements = mutable.Map[String, UiElement]()
   var currentDepth = 0
 
 
   def getClickableElements(retryTime :Int = 1): List[UiElement] = {
-    val activity = appiumAgent.driver.currentActivity
+    val view = getCurrentView
 
     //TODO 生成UiElement的逻辑中有部分代码被重复调用,可以考虑坐下修改进行简化
     val clickableElements = appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
-      .map( elm => (elm , UiElement.toUrl(activity, elm)))
+      .map( elm => (elm , UiElement.toUrl(view, elm)))
       .map(
-        elm => elements.getOrElseUpdate(elm._2, new UiElement(elm._1, activity))
+        elm => elements.getOrElseUpdate(elm._2, new UiElement(elm._1, view))
       )
+
+
+//    val p = new scala.xml.PrettyPrinter(80, 4)
+//    log.info(p.format(XML.loadString(appiumAgent.driver.getPageSource))  )
 
     clickableElements.filter(_.shouldClick) match {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
@@ -79,10 +81,16 @@ class AppTraversal private[winkar](var appPath: String) {
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
   }
 
+  def getCurrentView: String = s"${appiumAgent.driver.currentActivity}_${MessageDigest.Md5(appiumAgent.driver.getPageSource)}"
 
-  def traversal(currentActivity: String) {
-    val depth = depthMap.getOrElseUpdate(currentActivity, currentDepth)
-    log.info("Current at " + currentActivity)
+  def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
+
+
+  def traversal() {
+    val currentView = getCurrentView
+
+    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+    log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
     appiumAgent.takeScreenShot(logDir)
 
@@ -92,9 +100,9 @@ class AppTraversal private[winkar](var appPath: String) {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
         var clickableElements = getClickableElements()
-        log.info(s"${clickableElements.size} clickable elements found on Acitivity")
-        if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentActivity)) {
-          throw new LoginUiFoundException(currentActivity)
+        log.info(s"${clickableElements.size} clickable elements found on view")
+        if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
+          throw new LoginUiFoundException(currentView)
         }
 
         try {
@@ -104,16 +112,16 @@ class AppTraversal private[winkar](var appPath: String) {
               element.click
               lastClickedElement = element
 
-              val appActivity = appiumAgent.currentActivity
-              element.destActivity = appActivity
+              val viewAfterClick = getCurrentView
+              element.destView = viewAfterClick
 
-              if (element.destActivity==lastActivity) {
+              if (element.destView==lastView) {
                 element.isBack = true
               }
 
               // TODO: 对Activity进行过滤
-              if (appActivity != currentActivity) {
-                log.info("Jumped to activity " + appiumAgent.currentActivity)
+              if (viewAfterClick != currentView) {
+                log.info("Jumped to view " + currentView)
 
                 appiumAgent.currentPackage match {
                   case pkg: String if pkg != appPackage =>
@@ -127,11 +135,11 @@ class AppTraversal private[winkar](var appPath: String) {
                     back()
 
                     // 如果无法回到原App, 重新启动App
-                    if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
+                    checkCurrentPackage()
                   case _ =>
                     currentDepth += 1
-                    jumpStack.push(currentActivity)
-                    traversal(appActivity)
+                    jumpStack.push(currentView)
+                    traversal()
                     jumpStack.pop()
                     currentDepth -= 1
                 }
@@ -139,7 +147,7 @@ class AppTraversal private[winkar](var appPath: String) {
             } catch {
               // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
               case e: org.openqa.selenium.NoSuchElementException =>
-                //TODO 此处应check 是否还在原来的进程 check按钮是否点击完
+                checkCurrentPackage()
                 log.info("Cannot locate element")
                 log.info("Reload clickable elements")
                 clickableElements = getClickableElements()
@@ -149,17 +157,11 @@ class AppTraversal private[winkar](var appPath: String) {
         } catch {
           case ex: ShouldRestartAppException =>
             restartApp()
-            traversal(appiumAgent.driver.currentActivity)
+            traversal()
         }
     }
 
-    depth match {
-      case 0 =>
-        appiumAgent.closeApp
-        log.info("Close App")
-      // TODO 需要处理一次back无法跳转activity, 说明该activity无法back
-      case _ => back()
-    }
+    back()
   }
 
   def back() = {
@@ -167,7 +169,10 @@ class AppTraversal private[winkar](var appPath: String) {
     appiumAgent.driver.navigate().back()
   }
 
-  def restartApp() = appiumAgent.driver.launchApp()
+  def restartApp() = {
+    log.info("Restart App")
+    appiumAgent.driver.launchApp()
+  }
 
 
   val traversalTimeout = 10
@@ -187,7 +192,7 @@ class AppTraversal private[winkar](var appPath: String) {
       import java.util.concurrent.{Callable, FutureTask, TimeUnit}
       val traversalTask = new FutureTask(new Callable[Unit]  {
         def call(): Unit = {
-          traversal(appiumAgent.currentActivity)
+          traversal()
         }
       })
 
@@ -197,7 +202,7 @@ class AppTraversal private[winkar](var appPath: String) {
     }
     catch {
       case e: LoginUiFoundException =>
-        log.warn(s"Login Ui Found: ${e.loginActivity}")
+        log.warn(s"Login Ui Found: ${e.loginUi}")
       case e: TimeoutException =>
         log.warn("Timeout!")
 

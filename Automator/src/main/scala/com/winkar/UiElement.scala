@@ -12,12 +12,13 @@ import scala.collection.mutable
 
 
 object UiElement {
-  def formatAndroidElement(elm:AndroidElement) : String =  s"Tag: ${elm.getTagName}; " +
-    s"Text ${elm.getText}; " +
-    s"resourceId ${elm.getAttribute("resourceId")}"
+  def formatAndroidElement(elm:AndroidElement) : String =  s"Tag:${elm.getTagName};" +
+    s"Text:${elm.getText};" +
+    s"resourceId:${elm.getAttribute("resourceId")};" +
+    s"contentDesc:${elm.getAttribute("name")};"
 
-  def toUrl(activity: String, elm: AndroidElement): String = {
-    s"${activity}_${formatAndroidElement(elm)}"
+  def toUrl(view: String, elm: AndroidElement): String = {
+    s"${view}_${formatAndroidElement(elm)}"
   }
 
   val visitedUrl = mutable.Set[String]()
@@ -34,7 +35,7 @@ object UiElement {
 
 }
 
-class UiElement(element: AndroidElement, activity: String) {
+class UiElement(element: AndroidElement, view: String) {
   var androidElement: AndroidElement = element
 
   object Importance {
@@ -82,16 +83,17 @@ class UiElement(element: AndroidElement, activity: String) {
   )
 
   var willChangeCurrentUI: Boolean = false
-  var isBack:  Boolean = backRegex.exists(_.findFirstIn(resourceId).isDefined)
+  var isBack:  Boolean = List(resourceId, text, contentDesc).exists(isInBackRegex)
   val validTag: Boolean = !noClickTags.contains(tagName)
 
 
+  def isInBackRegex(s : String): Boolean = backRegex.exists(_.findFirstIn(s).isDefined)
   def isInBlackList(s : String): Boolean = blackListRegex.exists(_.findFirstIn(s).isDefined)
 
-  val inBlackList : Boolean = List(resourceId, text).exists(isInBlackList)
+  val inBlackList : Boolean = List(resourceId, text, contentDesc).exists(isInBlackList)
 
-  var destActivity: String = null
-  var srcActivity: String = activity
+  var destView: String = null
+  var srcView: String = view
   val url = toString
   var clicked = false
 //  val focusable = element.getAttribute("focusable")=="true"
