@@ -6,10 +6,11 @@ import java.nio.file.Paths
 import io.appium.java_client.android.{AndroidDriver, AndroidElement}
 import org.apache.commons.io.FileUtils
 import org.apache.log4j.Logger
-import org.openqa.selenium.remote.{CapabilityType, DesiredCapabilities}
+import org.openqa.selenium.remote.DesiredCapabilities
 import org.openqa.selenium.{By, OutputType}
 
 import scala.collection.JavaConverters._
+
 
 
 class AppiumAgent(val appPath: String) {
@@ -35,16 +36,16 @@ class AppiumAgent(val appPath: String) {
 
   def currentActivity: String = driver.currentActivity
 
-  def currentPackage: String = AndroidUtils.getCurrentPackage
+  def currentPackage: String = AndroidUtils.getCurrentPackage()
 
   def pressKeyCode(key: Int) = driver.pressKeyCode(key)
 
 
   def findElements(by: By): List[AndroidElement] = driver.findElements(by).asScala.toList
 
-  def quit = driver.quit
+  def quit() = driver.quit()
 
-  def closeApp = driver.closeApp
+  def closeApp() = driver.closeApp()
 
   def installApp(apkPath: String) = driver.installApp(apkPath)
 
