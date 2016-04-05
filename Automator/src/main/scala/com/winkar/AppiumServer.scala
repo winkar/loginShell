@@ -2,6 +2,7 @@ package com.winkar
 
 import org.apache.log4j.Logger
 
+import scala.io.Source
 import scala.sys.process._
 
 /**
@@ -11,15 +12,28 @@ class AppiumServer {
 
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
 
-  log.info("Appium server started")
+  log.info("Starting Appium server")
   val server: Process = Process("appium").run(ProcessLogger(
     (o : String) => (),
     (e : String) => ()
   ))
+  //TODO : http://127.0.0.1:4723/wd/hub/status 判断是否启动完成
 
 
-  Thread.sleep(5000)
+  def getStatus() = Source.fromURL("http://127.0.0.1:4723/wd/hub/status").mkString
 
+  def checkStatus(): Unit = {
+    try
+      getStatus()
+    catch {
+      case e: java.net.ConnectException =>
+        Thread.sleep(1000)
+        checkStatus()
+    }
+  }
+
+  checkStatus()
+  log.info("Appium Server started")
 
   def stop() = {
     log.info("Appium server stopped")
