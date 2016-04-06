@@ -34,7 +34,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
 
   class ShouldRestartAppException extends RuntimeException
-  class ViewChangedException extends RuntimeException
+  class UnexpectedViewException extends RuntimeException
   class LoginUiFoundException(loginUI: String) extends RuntimeException {
     val loginUi = loginUI
   }
@@ -70,6 +70,7 @@ class AppTraversal private[winkar](var appPath: String) {
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
         Thread.sleep(3000)
+        //TODO: Handle activity change when sleeping
         getClickableElements(0)
     }
   }
@@ -86,6 +87,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
 
+  def checkCurrentView(expectedView: String) = if (expectedView!=getCurrentView) throw new UnexpectedViewException
 
   def traversal() {
     val currentView = getCurrentView
@@ -137,6 +139,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
                       // 如果无法回到原App, 重新启动App
                       checkCurrentPackage()
+//                      checkCurrentView(expectedView = currentView)
                     case _ =>
                       currentDepth += 1
                       jumpStack.push(currentView)
@@ -149,7 +152,7 @@ class AppTraversal private[winkar](var appPath: String) {
                 // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
                 case e: org.openqa.selenium.NoSuchElementException =>
                   checkCurrentPackage()
-                  if (getCurrentView!=currentView) throw new ViewChangedException
+                  checkCurrentView(expectedView = currentView)
                   log.info("Cannot locate element")
                   log.info("Reload clickable elements")
                   clickableElements = getClickableElements()
@@ -157,18 +160,17 @@ class AppTraversal private[winkar](var appPath: String) {
               }
             }
           })
+          back()
         } catch {
           case ex: ShouldRestartAppException =>
             restartApp()
             traversal()
-          case ex: ViewChangedException =>
+          case ex: UnexpectedViewException =>
             log.info("View changed unexpected")
             log.info(s"Current view is ${currentView}")
             // Do nothing but jump out of inner foreach loop
         }
     }
-
-    back()
   }
 
   def back() = {
