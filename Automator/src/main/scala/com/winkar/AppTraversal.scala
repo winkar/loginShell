@@ -65,7 +65,7 @@ class AppTraversal private[winkar](var appPath: String) {
 //    val p = new scala.xml.PrettyPrinter(80, 4)
 //    log.info(p.format(XML.loadString(appiumAgent.driver.getPageSource))  )
 
-    clickableElements.filter(_.shouldClick) match {
+    clickableElements match {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
@@ -108,51 +108,53 @@ class AppTraversal private[winkar](var appPath: String) {
 
         try {
           clickableElements.foreach(element => {
-            try {
-              log.info("Click " + element.toString)
-              element.click
-              lastClickedElement = element
+            if (element.shouldClick) {
+              try {
+                log.info("Click " + element.toString)
+                element.click()
+                lastClickedElement = element
 
-              val viewAfterClick = getCurrentView
-              element.destView = viewAfterClick
+                val viewAfterClick = getCurrentView
+                element.destView = viewAfterClick
 
-              if (element.destView==lastView) {
-                element.isBack = true
-              }
-
-              if (viewAfterClick != currentView) {
-                log.info("Jumped to view " + viewAfterClick)
-
-                appiumAgent.currentPackage match {
-                  case pkg: String if pkg != appPackage =>
-                    log.info("Jumped out of App")
-                    log.info(s"Current at app $pkg")
-
-                    if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
-
-                    log.info("Try back to app")
-
-                    back()
-
-                    // 如果无法回到原App, 重新启动App
-                    checkCurrentPackage()
-                  case _ =>
-                    currentDepth += 1
-                    jumpStack.push(currentView)
-                    traversal()
-                    jumpStack.pop()
-                    currentDepth -= 1
+                if (element.destView==lastView) {
+                  element.isBack = true
                 }
+
+                if (viewAfterClick != currentView) {
+                  log.info("Jumped to view " + viewAfterClick)
+
+                  appiumAgent.currentPackage match {
+                    case pkg: String if pkg != appPackage =>
+                      log.info("Jumped out of App")
+                      log.info(s"Current at app $pkg")
+
+                      if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
+
+                      log.info("Try back to app")
+
+                      back()
+
+                      // 如果无法回到原App, 重新启动App
+                      checkCurrentPackage()
+                    case _ =>
+                      currentDepth += 1
+                      jumpStack.push(currentView)
+                      traversal()
+                      jumpStack.pop()
+                      currentDepth -= 1
+                  }
+                }
+              } catch {
+                // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
+                case e: org.openqa.selenium.NoSuchElementException =>
+                  checkCurrentPackage()
+                  if (getCurrentView!=currentView) throw new ViewChangedException
+                  log.info("Cannot locate element")
+                  log.info("Reload clickable elements")
+                  clickableElements = getClickableElements()
+                  log.info(s"${clickableElements.size} elements found")
               }
-            } catch {
-              // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
-              case e: org.openqa.selenium.NoSuchElementException =>
-                checkCurrentPackage()
-                if (getCurrentView!=currentView) throw new ViewChangedException
-                log.info("Cannot locate element")
-                log.info("Reload clickable elements")
-                clickableElements = getClickableElements()
-                log.info(s"${clickableElements.size} elements found")
             }
           })
         } catch {

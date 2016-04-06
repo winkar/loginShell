@@ -32,7 +32,27 @@ object UiElement {
     }
   }
 
+  val noClickTags = Array(
+    "android.widget.EditText",
+    "android.widget.Spinner"
+  )
 
+  val backRegex = Array(
+    """.*[Bb]ack.*""".r,
+    """.*nav_left.*""".r,
+    """left_icon""".r,
+    """返回""".r
+  )
+
+  val blackListRegex = Array(
+    """否|([Nn]o)""".r,
+    """[cC]lear""".r,
+    """安装""".r,
+    """[Ii]nstall""".r,
+    """下载""".r,
+    """[dD]ownload""".r,
+    """下载""".r
+  )
 }
 
 class UiElement(element: AndroidElement, view: String) {
@@ -60,35 +80,15 @@ class UiElement(element: AndroidElement, view: String) {
   val contentDesc: String = element.getAttribute("name")
 
 
-  val noClickTags = Array(
-    "android.widget.EditText",
-    "android.widget.Spinner"
-  )
 
-  val backRegex = Array(
-    """.*[Bb]ack.*""".r,
-    """.*nav_left.*""".r,
-    """left_icon""".r,
-    """返回""".r
-  )
-
-  val blackListRegex = Array(
-     """否|([Nn]o)""".r,
-     """[cC]lear""".r,
-    """安装""".r,
-    """[Ii]nstall""".r,
-    """下载""".r,
-    """[dD]ownload""".r,
-    """下载""".r
-  )
 
   var willChangeCurrentUI: Boolean = false
   var isBack:  Boolean = List(resourceId, text, contentDesc).exists(isInBackRegex)
-  val validTag: Boolean = !noClickTags.contains(tagName)
+  val validTag: Boolean = !UiElement.noClickTags.contains(tagName)
 
 
-  def isInBackRegex(s : String): Boolean = backRegex.exists(_.findFirstIn(s).isDefined)
-  def isInBlackList(s : String): Boolean = blackListRegex.exists(_.findFirstIn(s).isDefined)
+  def isInBackRegex(s : String): Boolean = UiElement.backRegex.exists(_.findFirstIn(s).isDefined)
+  def isInBlackList(s : String): Boolean = UiElement.blackListRegex.exists(_.findFirstIn(s).isDefined)
 
   val inBlackList : Boolean = List(resourceId, text, contentDesc).exists(isInBlackList)
 
@@ -98,8 +98,8 @@ class UiElement(element: AndroidElement, view: String) {
   var clicked = false
 //  val focusable = element.getAttribute("focusable")=="true"
 
-  def click = {
-    element.click
+  def click() = {
+    element.click()
     clicked = true
   }
 
@@ -109,8 +109,8 @@ class UiElement(element: AndroidElement, view: String) {
   def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !UiElement.urlVisited(this.toString)
 
 
-  override def toString: String = String.format(s"Tag:${tagName};" +
-    s"Text:${text};" +
-    s"resourceId:${resourceId};" +
-    s"contentDesc:${contentDesc};")
+  override def toString: String = String.format(s"Tag:$tagName;" +
+    s"Text:$text;" +
+    s"resourceId:$resourceId;" +
+    s"contentDesc:$contentDesc;")
 }
