@@ -5,33 +5,100 @@
 package com.winkar
 
 import org.apache.log4j.Logger
+import scopt.OptionParser
+import java.io.File
+
 import org.apache.log4j.xml.DOMConfigurator
 
-import scala.xml._
+import scala.xml.XML
 
 object Automator extends App {
+
+
+
   override def main(args: Array[String]): Unit = {
     val log: Logger = Logger.getLogger(Automator.getClass.getName)
-
     DOMConfigurator.configureAndWatch("config/log4j.xml")
 
-    val config = XML.loadFile("config/config.xml")
+    val parser = new OptionParser[Configure]("Automator") {
+      head("Automator", "0.0.1")
 
-    val apkDirectoryRoot = (config\"ApkDirectoryRoot").text
+      opt[String]("mode") action {
+        (x, c) => c.copy(mode = x)
+      } validate {
+        x => if (Configure.Modes.contains(x)) success else failure("mode invalid")
+      } text s"Test mode for Automator: ${Configure.Modes.mkString(",")}"
 
-    val mainTester : AppTester = (config\"Mode").text match {
-      case "SingleAppTest" => new SingleAppTester(s"${apkDirectoryRoot}/${(config\"ApkName").text}")
-      case "MultiAppTest" => new MultiAppTester(apkDirectoryRoot)
+      opt[String]("apkFile") valueName "<file>" action {
+        (x, c) => c.copy(apkFile = x)
+      } text "apk to test"
+
+      opt[String]("apkDirectory") action {
+        (x, c) => c.copy(apkDirectory = x)
+      } text "directory contains apks to test"
+
+      opt[String]("configFile") valueName "<file>" action {
+        (x, c) => c.copy(configFile = x)
+      } text "specified config file"
+
+      opt[Seq[String]]("apkFileList") valueName "<apkFile1>,<apkFile2>..." action {
+        (x, c) => c.copy(apkFileList = x)
+      } text "apks to test"
+
+      help("help") text "prints this usage text"
+
+      checkConfig {
+        c =>  {
+          if (c.configFile!=null) success
+          else {
+            if (c.mode == Configure.SingleAppTest) {
+              if (c.apkFile!=null) {
+                success
+              } else {
+                failure("apk file not specified")
+              }
+            } else if (c.mode == Configure.MultiAppTest) {
+              if (c.apkDirectory.nonEmpty || c.apkFileList.size > 0) {
+                success
+              } else {
+                failure("apk files not specified")
+              }
+            } else failure("mode invalid")
+          }
+        }
+      }
     }
 
+    parser.parse(args, Configure()) match {
+      case Some(configure) =>
 
-    log.info("Automator test started")
-    val server = new AppiumServer()
+        val mainTester : AppTester =  if (configure.configFile != null) {
+          val config = XML.loadFile(configure.configFile)
 
-    try {
-      mainTester.startTest()
-    } finally  {
-      server.stop()
+          val apkDirectoryRoot = (config\"apkDirectory").text
+
+          (config\"mode").text match {
+            case Configure.SingleAppTest => new SingleAppTester(s"${apkDirectoryRoot}/${(config\"apkFile").text}")
+            case Configure.MultiAppTest => new MultiAppTester(apkDirectoryRoot)
+          }
+        } else {
+          configure.mode  match {
+            case Configure.SingleAppTest => new SingleAppTester(configure.apkFile)
+            case Configure.MultiAppTest => new MultiAppTester(configure.apkDirectory)
+          }
+        }
+
+        log.info("Automator test started")
+        val server = new AppiumServer()
+
+        try {
+          mainTester.startTest()
+        } finally  {
+          server.stop()
+        }
+
+      case None =>
+        log.info("Invalid command line options")
     }
   }
 }

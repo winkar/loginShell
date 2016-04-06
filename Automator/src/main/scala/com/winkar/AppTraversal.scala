@@ -34,6 +34,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
 
   class ShouldRestartAppException extends RuntimeException
+  class UnexpectedViewException extends RuntimeException
   class LoginUiFoundException(loginUI: String) extends RuntimeException {
     val loginUi = loginUI
   }
@@ -64,11 +65,12 @@ class AppTraversal private[winkar](var appPath: String) {
 //    val p = new scala.xml.PrettyPrinter(80, 4)
 //    log.info(p.format(XML.loadString(appiumAgent.driver.getPageSource))  )
 
-    clickableElements.filter(_.shouldClick) match {
+    clickableElements match {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
         Thread.sleep(3000)
+        //TODO: Handle activity change when sleeping
         getClickableElements(0)
     }
   }
@@ -85,6 +87,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
 
+  def checkCurrentView(expectedView: String) = if (expectedView!=getCurrentView) throw new UnexpectedViewException
 
   def traversal() {
     val currentView = getCurrentView
@@ -107,61 +110,67 @@ class AppTraversal private[winkar](var appPath: String) {
 
         try {
           clickableElements.foreach(element => {
-            try {
-              log.info("Click " + element.toString)
-              element.click
-              lastClickedElement = element
+            if (element.shouldClick) {
+              try {
+                log.info("Click " + element.toString)
+                element.click()
+                lastClickedElement = element
 
-              val viewAfterClick = getCurrentView
-              element.destView = viewAfterClick
+                val viewAfterClick = getCurrentView
+                element.destView = viewAfterClick
 
-              if (element.destView==lastView) {
-                element.isBack = true
-              }
-
-              // TODO: 对Activity进行过滤
-              if (viewAfterClick != currentView) {
-                log.info("Jumped to view " + currentView)
-
-                appiumAgent.currentPackage match {
-                  case pkg: String if pkg != appPackage =>
-                    log.info("Jumped out of App")
-                    log.info(s"Current at app $pkg")
-
-                    if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
-
-                    log.info("Try back to app")
-
-                    back()
-
-                    // 如果无法回到原App, 重新启动App
-                    checkCurrentPackage()
-                  case _ =>
-                    currentDepth += 1
-                    jumpStack.push(currentView)
-                    traversal()
-                    jumpStack.pop()
-                    currentDepth -= 1
+                if (element.destView==lastView) {
+                  element.isBack = true
                 }
+
+                if (viewAfterClick != currentView) {
+                  log.info("Jumped to view " + viewAfterClick)
+
+                  appiumAgent.currentPackage match {
+                    case pkg: String if pkg != appPackage =>
+                      log.info("Jumped out of App")
+                      log.info(s"Current at app $pkg")
+
+                      if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
+
+                      log.info("Try back to app")
+
+                      back()
+
+                      // 如果无法回到原App, 重新启动App
+                      checkCurrentPackage()
+//                      checkCurrentView(expectedView = currentView)
+                    case _ =>
+                      currentDepth += 1
+                      jumpStack.push(currentView)
+                      traversal()
+                      jumpStack.pop()
+                      currentDepth -= 1
+                  }
+                }
+              } catch {
+                // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
+                case e: org.openqa.selenium.NoSuchElementException =>
+                  checkCurrentPackage()
+                  checkCurrentView(expectedView = currentView)
+                  log.info("Cannot locate element")
+                  log.info("Reload clickable elements")
+                  clickableElements = getClickableElements()
+                  log.info(s"${clickableElements.size} elements found")
               }
-            } catch {
-              // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
-              case e: org.openqa.selenium.NoSuchElementException =>
-                checkCurrentPackage()
-                log.info("Cannot locate element")
-                log.info("Reload clickable elements")
-                clickableElements = getClickableElements()
-                log.info(s"${clickableElements.size} elements found")
             }
           })
+          back()
         } catch {
           case ex: ShouldRestartAppException =>
             restartApp()
             traversal()
+          case ex: UnexpectedViewException =>
+            log.info("View changed unexpected")
+            log.info(s"Current view is ${currentView}")
+            // Do nothing but jump out of inner foreach loop
         }
     }
-
-    back()
   }
 
   def back() = {
@@ -180,7 +189,7 @@ class AppTraversal private[winkar](var appPath: String) {
   def start() {
     appiumAgent = new AppiumAgent(appPath)
     try {
-
+      log.info(s"Start testing apk: ${appPath}")
       appPackage = AndroidUtils.getPackageName(appPath)
       log.info("Get package Name: " + appPackage)
 
@@ -196,16 +205,19 @@ class AppTraversal private[winkar](var appPath: String) {
         }
       })
 
-      new Thread(traversalTask).start()
-
-      traversalTask.get(traversalTimeout, TimeUnit.MINUTES)
+      try {
+        new Thread(traversalTask).start()
+        traversalTask.get(traversalTimeout, TimeUnit.MINUTES)
+      } catch  {
+        case e: java.util.concurrent.ExecutionException =>
+          throw e.getCause()
+      }
     }
     catch {
       case e: LoginUiFoundException =>
-        log.warn(s"Login Ui Found: ${e.loginUi}")
+        log.warn(s"Login Ui Found: ${e.loginUi} in package ${this.appPackage} at ${appPath}")
       case e: TimeoutException =>
         log.warn("Timeout!")
-
       case e: Exception =>
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
@@ -216,7 +228,7 @@ class AppTraversal private[winkar](var appPath: String) {
       log.info("Remove app from device")
       appiumAgent.removeApp(appPackage)
       log.info("Quit")
-      appiumAgent.quit
+      appiumAgent.quit()
     }
   }
 }
