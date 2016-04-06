@@ -24,7 +24,7 @@ class AppiumServer {
 
   def checkStatus(): Unit = {
     try
-      getStatus()
+      log.info(getStatus())
     catch {
       case e: java.net.ConnectException =>
         Thread.sleep(1000)

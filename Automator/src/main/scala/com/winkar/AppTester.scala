@@ -4,7 +4,6 @@ import java.io.{File, IOException}
 
 import org.apache.log4j.Logger
 
-
 trait AppTester {
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   def startTest(): Unit = {
