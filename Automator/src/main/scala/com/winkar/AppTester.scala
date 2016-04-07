@@ -1,6 +1,6 @@
 package com.winkar
 
-import java.io.{File, IOException}
+import java.io.File
 
 import org.apache.log4j.Logger
 
@@ -15,18 +15,22 @@ class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
   val appBlackList = Array("aimoxiu.theme.mx49c81e403f35f52d4cdc6ad2020da3d8.apk",
                             "aimoxiu.theme.mx62fbed7a2d8bc5f11a4a35ae0289a3b3.apk")
 
-  override def startTest {
+  var appCount = 0
+  var errCount = 0
+  var loginCount = 0
+
+  override def startTest() {
     val apkRoot: File = new File(apkDirectoryRoot)
     for (path <- apkRoot.list) {
       try {
         if (!appBlackList.contains(path)) {
           log.info(String.format("Testing apk %s", path))
           val appTraversal: AppTraversal = new AppTraversal(apkDirectoryRoot + File.separator + path)
-          appTraversal.start
+          appTraversal.start()
           log.info(String.format("Stop testing apk %s", path))
         }
       } catch {
-        case e: org.openqa.selenium.WebDriverException => e.printStackTrace
+        case e: org.openqa.selenium.WebDriverException => e.printStackTrace()
       }
     }
   }
@@ -34,11 +38,11 @@ class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
 
 
 class SingleAppTester private[winkar](val apkPath: String) extends AppTester {
-  override def startTest: Unit = {
+  override def startTest(): Unit = {
     try {
-      new AppTraversal(apkPath).start
+      new AppTraversal(apkPath).start()
     } catch  {
-      case e: org.openqa.selenium.WebDriverException => e.printStackTrace
+      case e: org.openqa.selenium.WebDriverException => e.printStackTrace()
     }
   }
 }
