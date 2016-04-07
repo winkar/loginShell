@@ -21,10 +21,12 @@ class ApkSpider(CrawlSpider):
 
 
     def parse_apk(self, response):
-        if "game" not in response.url:
-            item = ApkItem()
-            item['url'] = response.url
-            item['file_urls'] = response.xpath(r"//a[@class='det-down-btn']/@data-apkurl").extract()
-            item['package'] = response.xpath(r"//a[@class='det-down-btn']/@apk").extract()
+        item = ApkItem()
+        item['url'] = response.url
+        item['file_urls'] = response.xpath(r"//a[@class='det-down-btn']/@data-apkurl").extract()
+        item['package'] = response.xpath(r"//a[@class='det-down-btn']/@apk").extract()
+        item['category_href'] = response.xpath(r"//a[@class='det-type-link']/@href").extract()
+        item['category'] = response.xpath(r"//a[@class='det-type-link']/text()").extract()
 
+        if "game" not in item['category_href'][0]:
             yield item
