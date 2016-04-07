@@ -11,8 +11,14 @@ import scala.collection.mutable
 import scala.concurrent._
 
 
+object TravelResult extends Enumeration {
+  val Complete, LoginUiFound, Fail = Value
+}
 
 class AppTraversal private[winkar](var appPath: String) {
+
+
+
   var logDir: String = ""
   private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
@@ -186,7 +192,9 @@ class AppTraversal private[winkar](var appPath: String) {
 
   val traversalTimeout = 10
 
-  def start() {
+
+
+  def start(): TravelResult.Value = {
     appiumAgent = new AppiumAgent(appPath)
     try {
       log.info(s"Start testing apk: $appPath")
@@ -212,16 +220,21 @@ class AppTraversal private[winkar](var appPath: String) {
         case e: java.util.concurrent.ExecutionException =>
           throw e.getCause
       }
+      TravelResult.Complete
     }
     catch {
       case e: LoginUiFoundException =>
         log.warn(s"Login Ui Found: ${e.loginUi} in package ${this.appPackage} at $appPath")
+        "LoginFound"
+        TravelResult.LoginUiFound
       case e: TimeoutException =>
         log.warn("Timeout!")
+        TravelResult.Fail
       case e: Exception =>
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
+        TravelResult.Fail
     } finally {
       log.info("Take screenShot on quit")
       appiumAgent.takeScreenShot(logDir)
