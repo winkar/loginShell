@@ -167,7 +167,7 @@ class AppTraversal private[winkar](var appPath: String) {
             traversal()
           case ex: UnexpectedViewException =>
             log.info("View changed unexpected")
-            log.info(s"Current view is ${currentView}")
+            log.info(s"Current view is $currentView")
             // Do nothing but jump out of inner foreach loop
         }
     }
@@ -189,7 +189,7 @@ class AppTraversal private[winkar](var appPath: String) {
   def start() {
     appiumAgent = new AppiumAgent(appPath)
     try {
-      log.info(s"Start testing apk: ${appPath}")
+      log.info(s"Start testing apk: $appPath")
       appPackage = AndroidUtils.getPackageName(appPath)
       log.info("Get package Name: " + appPackage)
 
@@ -215,7 +215,7 @@ class AppTraversal private[winkar](var appPath: String) {
     }
     catch {
       case e: LoginUiFoundException =>
-        log.warn(s"Login Ui Found: ${e.loginUi} in package ${this.appPackage} at ${appPath}")
+        log.warn(s"Login Ui Found: ${e.loginUi} in package ${this.appPackage} at $appPath")
       case e: TimeoutException =>
         log.warn("Timeout!")
       case e: Exception =>
