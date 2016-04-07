@@ -24,11 +24,11 @@ class AppiumServer {
 
 
 
-  def getStatus(): String = Source.fromURL("http://127.0.0.1:4723/wd/hub/status").mkString
+  def getStatus: String = Source.fromURL("http://127.0.0.1:4723/wd/hub/status").mkString
 
   def checkStatus(): Unit = {
     try
-      log.info(getStatus())
+      log.info(getStatus)
 
     catch {
       case e: java.net.ConnectException =>

@@ -5,10 +5,8 @@
 package com.winkar
 
 import org.apache.log4j.Logger
-import scopt.OptionParser
-import java.io.File
-
 import org.apache.log4j.xml.DOMConfigurator
+import scopt.OptionParser
 
 import scala.xml.XML
 
@@ -58,7 +56,7 @@ object Automator extends App {
                 failure("apk file not specified")
               }
             } else if (c.mode == Configure.MultiAppTest) {
-              if (c.apkDirectory.nonEmpty || c.apkFileList.size > 0) {
+              if (c.apkDirectory.nonEmpty || c.apkFileList.nonEmpty) {
                 success
               } else {
                 failure("apk files not specified")
@@ -78,7 +76,7 @@ object Automator extends App {
           val apkDirectoryRoot = (config\"apkDirectory").text
 
           (config\"mode").text match {
-            case Configure.SingleAppTest => new SingleAppTester(s"${apkDirectoryRoot}/${(config\"apkFile").text}")
+            case Configure.SingleAppTest => new SingleAppTester(s"$apkDirectoryRoot/${(config\"apkFile").text}")
             case Configure.MultiAppTest => new MultiAppTester(apkDirectoryRoot)
           }
         } else {

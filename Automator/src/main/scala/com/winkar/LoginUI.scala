@@ -1,7 +1,5 @@
 package com.winkar
 
-import scala.collection.mutable
-
 /**
   * Created by WinKaR on 16/3/29.
   */

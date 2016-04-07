@@ -7,7 +7,6 @@ version := "0.0.1-SNAPSHOT"
 scalaVersion := "2.11.8"
 
 libraryDependencies += "log4j" % "log4j" % "1.2.14"
-//libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.5"
 libraryDependencies += "junit" % "junit" % "4.12"
 libraryDependencies += "io.appium" % "java-client" % "3.4.0"
 libraryDependencies += "org.scala-lang.modules" % "scala-xml_2.11" % "1.0.4"

@@ -210,7 +210,7 @@ class AppTraversal private[winkar](var appPath: String) {
         traversalTask.get(traversalTimeout, TimeUnit.MINUTES)
       } catch  {
         case e: java.util.concurrent.ExecutionException =>
-          throw e.getCause()
+          throw e.getCause
       }
     }
     catch {
