@@ -15,3 +15,5 @@ class ApkItem(scrapy.Item):
     url = scrapy.Field()
     file_urls = scrapy.Field()
     files = scrapy.Field()
+    category = scrapy.Field()
+    category_href = scrapy.Field()

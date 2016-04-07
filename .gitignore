@@ -13,3 +13,4 @@ log
 tmp
 project
 apkCrawler/nohup.out
+*.tar.gz

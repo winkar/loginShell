@@ -65,7 +65,8 @@ ITEM_PIPELINES = {
    # 'apkCrawler.pipelines.SomePipeline': 300,
    'scrapy.pipelines.files.FilesPipeline' : 100
 }
-FILES_STORE = '/mnt/nfs/yingyongbao'
+# FILES_STORE = '/mnt/nfs/yingyongbao'
+FILES_STORE = 'download'
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See http://doc.scrapy.org/en/latest/topics/autothrottle.html
