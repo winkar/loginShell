@@ -3,7 +3,7 @@ package com.winkar
 import java.io.{File, PrintWriter, StringWriter}
 
 import org.apache.log4j.Logger
-
+import scala.collection.mutable
 
 trait AppTester {
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
@@ -12,32 +12,35 @@ trait AppTester {
 }
 
 
-class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
-  val appBlackList = Array("aimoxiu.theme.mx49c81e403f35f52d4cdc6ad2020da3d8.apk",
-                            "aimoxiu.theme.mx62fbed7a2d8bc5f11a4a35ae0289a3b3.apk")
 
+class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
   var appCount = 0
-  var failCount = 0
-  var loginCount = 0
+
+  val failedAppList = mutable.ListBuffer[String]()
+  val loginFoundAppList = mutable.ListBuffer[String]()
+
 
   override def startTest() {
     val apkRoot: File = new File(apkDirectoryRoot)
     try {
       for (path <- apkRoot.list) {
         try {
-          if (!appBlackList.contains(path)) {
             log.info(String.format("Testing apk %s", path))
             val appTraversal: AppTraversal = new AppTraversal(apkDirectoryRoot + File.separator + path)
             appTraversal.start() match {
               case TravelResult.Complete =>
-              case TravelResult.Fail => failCount += 1
-              case TravelResult.LoginUiFound => loginCount +=1
+              case TravelResult.Fail =>
+                failedAppList.append(path)
+              case TravelResult.LoginUiFound =>
+                loginFoundAppList.append(path)
             }
             appCount += 1
             log.info(String.format("Stop testing apk %s", path))
-          }
         } catch {
-          case e: org.openqa.selenium.WebDriverException => e.printStackTrace()
+          case e: org.openqa.selenium.WebDriverException =>
+            val sw = new StringWriter
+            e.printStackTrace(new PrintWriter(sw))
+            log.warn(sw.toString)
         }
       }
     } catch  {
@@ -46,7 +49,13 @@ class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
     } finally {
-      log.info(s"$appCount apps tested in total, failed on $failCount apps, found $loginCount login Ui")
+      log.info(s"$appCount apps tested in total, failed on ${failedAppList.size} apps, found ${loginFoundAppList.size} login Ui")
+
+      log.info("Failed App List")
+      failedAppList.foreach(log.info)
+
+      log.info("Login Ui found in Apps: ")
+      loginFoundAppList.foreach(log.info)
     }
   }
 }
@@ -57,7 +66,10 @@ class SingleAppTester private[winkar](val apkPath: String) extends AppTester {
     try {
       new AppTraversal(apkPath).start()
     } catch  {
-      case e: org.openqa.selenium.WebDriverException => e.printStackTrace()
+      case e: org.openqa.selenium.WebDriverException =>
+        val sw = new StringWriter
+        e.printStackTrace(new PrintWriter(sw))
+        log.warn(sw.toString)
     }
   }
 }
