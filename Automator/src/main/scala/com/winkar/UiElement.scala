@@ -106,7 +106,7 @@ class UiElement(element: AndroidElement, view: String) {
 
 //  def isEmpty = (text + resourceId).trim.isEmpty
 
-  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !UiElement.urlVisited(this.toString)
+  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !UiElement.urlVisited(this.toString) && element.isDisplayed
 
 
   override def toString: String = String.format(s"Tag:$tagName;" +
