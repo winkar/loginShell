@@ -38,6 +38,7 @@ class AppTraversal private[winkar](var appPath: String) {
     }
   }
 
+  val uiGraph = new UiGraph()
 
   class ShouldRestartAppException extends RuntimeException
   class UnexpectedViewException extends RuntimeException
@@ -97,8 +98,16 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def traversal() {
     val currentView = getCurrentView
+//    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
 
-    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+    val depth = depthMap.get(currentView) match {
+      case Some(d) => d
+      case None =>
+        depthMap.update(currentView, currentDepth)
+        uiGraph.addNode(currentView)
+        currentDepth
+    }
+
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
     appiumAgent.takeScreenShot(logDir)
@@ -124,6 +133,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
                 val viewAfterClick = getCurrentView
                 element.destView = viewAfterClick
+                uiGraph.getNode(currentView).addEdge(element)
 
                 if (element.destView==lastView) {
                   element.isBack = true
@@ -225,7 +235,6 @@ class AppTraversal private[winkar](var appPath: String) {
     catch {
       case e: LoginUiFoundException =>
         log.warn(s"Login Ui Found: ${e.loginUi} in package ${this.appPackage} at $appPath")
-        "LoginFound"
         TravelResult.LoginUiFound
       case e: TimeoutException =>
         log.warn("Timeout!")
@@ -238,6 +247,7 @@ class AppTraversal private[winkar](var appPath: String) {
     } finally {
       log.info("Take screenShot on quit")
       appiumAgent.takeScreenShot(logDir)
+      uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
       log.info("Remove app from device")
       appiumAgent.removeApp(appPackage)
       log.info("Quit")
