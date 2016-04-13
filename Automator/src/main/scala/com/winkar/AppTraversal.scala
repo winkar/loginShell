@@ -208,8 +208,8 @@ class AppTraversal private[winkar](var appPath: String) {
 
 
   def start(): TravelResult.Value = {
-    appiumAgent = new AppiumAgent(appPath)
     try {
+      appiumAgent = new AppiumAgent(appPath)
       log.info(s"Start testing apk: $appPath")
       appPackage = GlobalConfig.currentPackage
 
@@ -241,19 +241,21 @@ class AppTraversal private[winkar](var appPath: String) {
       case e: TimeoutException =>
         log.warn("Timeout!")
         TravelResult.Fail
-      case e: Exception =>
+      case e: org.openqa.selenium.WebDriverException =>
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
         TravelResult.Fail
     } finally {
       log.info("Take screenShot on quit")
-      appiumAgent.takeScreenShot(logDir)
-      uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
-      log.info("Remove app from device")
-      appiumAgent.removeApp(appPackage)
-      log.info("Quit")
-      appiumAgent.quit()
+      if (appiumAgent!=null) {
+        appiumAgent.takeScreenShot(logDir)
+        uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
+        log.info("Remove app from device")
+        appiumAgent.removeApp(appPackage)
+        log.info("Quit")
+        appiumAgent.quit()
+      }
     }
   }
 }
