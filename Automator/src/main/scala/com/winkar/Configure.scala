@@ -1,6 +1,4 @@
 package com.winkar
-
-import java.io.File
 /**
   * Created by winkar on 16-4-6.
   */

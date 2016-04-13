@@ -15,26 +15,31 @@ trait AppTester {
 
 
 
-class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
+class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
   var appCount = 0
 
   val failedAppList = mutable.ListBuffer[String]()
   val loginFoundAppList = mutable.ListBuffer[String]()
 
 
+  def this(apkDirectoryRoot: String) {
+    this(
+      for (apkPath <- new File(apkDirectoryRoot).list) yield Paths.get(apkDirectoryRoot, apkPath).toString
+    )
+  }
 
   override def startTest() {
-    val apkRoot: File = new File(apkDirectoryRoot)
     try {
-      for (path <- apkRoot.list) {
+      for (fullPath <- ApkFiles) {
         try {
-            val fullPath = Paths.get(apkDirectoryRoot, path).toString
             GlobalConfig.currentPackage = AndroidUtils.getPackageName(fullPath)
 
-            if (!GlobalConfig.fast ||
-              !new File(Paths.get("log", GlobalConfig.currentPackage, "site.xml").toString).exists()) {
+            val apkFileName = Paths.get(fullPath).getFileName.toString
 
-              log.info(String.format("Testing apk %s", path))
+            if (!GlobalConfig.fast || (GlobalConfig.fast &&
+              !new File(Paths.get("log", GlobalConfig.currentPackage, "site.xml").toString).exists())) {
+
+              log.info(String.format("Testing apk %s", apkFileName))
               log.info("Get package Name: " + GlobalConfig.currentPackage)
 
 
@@ -42,12 +47,12 @@ class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
               appTraversal.start() match {
                 case TravelResult.Complete =>
                 case TravelResult.Fail =>
-                  failedAppList.append(path)
+                  failedAppList.append(apkFileName)
                 case TravelResult.LoginUiFound =>
-                  loginFoundAppList.append(path)
+                  loginFoundAppList.append(apkFileName)
               }
               appCount += 1
-              log.info(String.format("Stop testing apk %s", path))
+              log.info(String.format("Stop testing apk %s", apkFileName))
             }
 
 
@@ -64,27 +69,24 @@ class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
     } finally {
-      log.info(s"$appCount apps tested in total, failed on ${failedAppList.size} apps, found ${loginFoundAppList.size} login Ui")
+      log.info(s"${ApkFiles.size} apps in total  $appCount apps tested, failed on ${failedAppList.size} apps, found ${loginFoundAppList.size} login Ui")
 
-      log.info("Failed App List")
-      failedAppList.foreach(log.info)
 
-      log.info("Login Ui found in Apps: ")
-      loginFoundAppList.foreach(log.info)
+      if (failedAppList.nonEmpty) {
+        log.info("Failed App List")
+        failedAppList.foreach(log.info)
+      }
+
+
+      if (loginFoundAppList.nonEmpty) {
+        log.info("Login Ui found in Apps: ")
+        loginFoundAppList.foreach(log.info)
+      }
     }
   }
 }
 
 
 class SingleAppTester private[winkar](val apkPath: String) extends AppTester {
-  override def startTest(): Unit = {
-    try {
-      new AppTraversal(apkPath).start()
-    } catch  {
-      case e: org.openqa.selenium.WebDriverException =>
-        val sw = new StringWriter
-        e.printStackTrace(new PrintWriter(sw))
-        log.warn(sw.toString)
-    }
-  }
+  override def startTest() = new MultiAppTester(Seq(apkPath)).startTest()
 }
