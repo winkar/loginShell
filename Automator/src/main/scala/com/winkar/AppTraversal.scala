@@ -241,6 +241,9 @@ class AppTraversal private[winkar](var appPath: String) {
       case e: TimeoutException =>
         log.warn("Timeout!")
         TravelResult.Fail
+      case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
+        GlobalConfig.server.restart()
+        start()
       case e: org.openqa.selenium.WebDriverException =>
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))

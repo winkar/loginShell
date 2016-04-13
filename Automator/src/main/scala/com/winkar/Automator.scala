@@ -94,7 +94,7 @@ object Automator extends App {
 
         log.info("Automator test started")
         val server = new AppiumServer()
-
+        GlobalConfig.server = server
         try {
           mainTester.startTest()
         } finally  {

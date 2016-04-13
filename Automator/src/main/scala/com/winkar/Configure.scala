@@ -12,6 +12,7 @@ object Configure {
 object GlobalConfig {
   var fast: Boolean = true
   var currentPackage = ""
+  var server: AppiumServer = null
 }
 
 case class Configure(

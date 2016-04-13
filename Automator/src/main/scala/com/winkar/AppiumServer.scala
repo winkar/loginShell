@@ -16,13 +16,20 @@ class AppiumServer {
   val out = new PrintWriter(new FileOutputStream("log/AppiumServer.log", true), true)
 
   log.info("Starting Appium server")
-  val server: Process = Process("appium").run(ProcessLogger(
+  var server: Process = null
+
+  def start() = {
+    server = Process("appium").run(ProcessLogger(
       fout = out println,
       ferr = out println
+    ))
+  }
 
-  ))
-
-
+  def restart() = {
+    stop()
+    start()
+    checkStatus()
+  }
 
   def getStatus: String = Source.fromURL("http://127.0.0.1:4723/wd/hub/status").mkString
 
@@ -37,6 +44,7 @@ class AppiumServer {
     }
   }
 
+  start()
   checkStatus()
   log.info("Appium Server started")
 
