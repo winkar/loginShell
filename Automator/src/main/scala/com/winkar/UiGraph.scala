@@ -15,18 +15,23 @@ class ViewNode(graph: UiGraph, view: String) {
   val edges = mutable.HashSet[ActionEdge]()
   def visitComplete: Boolean = elementsVisited.values.forall(a=>a)
 
+  var depth = -1
+
   val elementsVisited = mutable.HashMap[UiElement, Boolean]()
 
   def addElement(uiElement: UiElement) = {
     elementsVisited.update(uiElement, false)
     uiElement.parentView = this
   }
+
+  def removeElement(uiElement: UiElement) = elementsVisited.remove(uiElement)
+
   def addAllElement(elements: Seq[UiElement]) = elements.foreach(addElement)
 
   def addEdge(element: UiElement) = edges.add(new ActionEdge(parent, element))
 
   def toXml = {
-    <Node view={view} elementCount={elementsVisited.size.toString}>
+    <Node view={view} elementCount={elementsVisited.size.toString} depth={depth.toString}>
       {edges.map(edge => <Edge>
                             <To>{edge.destView.View}</To>
                             <Click>{edge.Element.toString}</Click>

@@ -110,6 +110,7 @@ class UiElement(element: AndroidElement, view: String) {
   def shouldClick: Boolean = {
     !inBlackList && !isBack && validTag &&     //Valid Check
       element.isDisplayed &&  // Display Check
+      destView != srcView && // Route Check
       ((!UiElement.urlVisited(this.toString) && !clicked)
         ||
         (clicked && !parentView.parent.getNode(destView).visitComplete))  // Visited check
@@ -123,7 +124,7 @@ class UiElement(element: AndroidElement, view: String) {
     case _ => false
   }
 
-  override def toString: String = s"Tag:$tagName;" +
+  override def toString: String = s"View:$srcView;Tag:$tagName;" +
     s"Text:$text;" +
     s"resourceId:$resourceId;" +
     s"contentDesc:$contentDesc;"

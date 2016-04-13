@@ -55,7 +55,6 @@ class AppTraversal private[winkar](var appPath: String) {
   }
 
   val elements = mutable.Map[String, UiElement]()
-  var currentDepth = 0
 
 
   def getClickableElements(retryTime :Int = 1): List[UiElement] = {
@@ -99,7 +98,14 @@ class AppTraversal private[winkar](var appPath: String) {
   def traversal() {
     val currentView = getCurrentView
     val currentNode = uiGraph.getNode(currentView)
-    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+//    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+
+    val depth = currentNode.depth match {
+      case -1 =>
+        currentNode.depth = if (lastView != "") uiGraph.getNode(lastView).depth + 1 else 0
+        currentNode.depth
+      case d: Int  => d
+    }
 
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
@@ -152,11 +158,9 @@ class AppTraversal private[winkar](var appPath: String) {
                       checkCurrentPackage()
 //                      checkCurrentView(expectedView = currentView)
                     case _ =>
-                      currentDepth += 1
                       jumpStack.push(currentView)
                       traversal()
                       while (jumpStack.top!=currentView) jumpStack.pop()
-                      currentDepth -= 1
                   }
                 }
               } catch {
@@ -170,6 +174,9 @@ class AppTraversal private[winkar](var appPath: String) {
                   currentNode.addAllElement(clickableElements)
                   log.info(s"${clickableElements.size} elements found")
               }
+            }
+            else {
+              currentNode.removeElement(element)
             }
           })
           back()
