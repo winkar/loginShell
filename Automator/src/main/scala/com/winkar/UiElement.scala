@@ -116,6 +116,12 @@ class UiElement(element: AndroidElement, view: String) {
 
   }
 
+  override def hashCode() = toString.hashCode
+  override def equals(obj: Any) = obj match {
+    case ele: UiElement =>
+      ele.toString == toString
+    case _ => false
+  }
 
   override def toString: String = s"Tag:$tagName;" +
     s"Text:$text;" +

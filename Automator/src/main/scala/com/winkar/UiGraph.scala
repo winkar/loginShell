@@ -12,7 +12,7 @@ import scala.collection.mutable
 class ViewNode(graph: UiGraph, view: String) {
   val parent = graph
   def View = view
-  val edges = mutable.ListBuffer[ActionEdge]()
+  val edges = mutable.HashSet[ActionEdge]()
   def visitComplete: Boolean = elementsVisited.values.forall(a=>a)
 
   val elementsVisited = mutable.HashMap[UiElement, Boolean]()
@@ -23,10 +23,10 @@ class ViewNode(graph: UiGraph, view: String) {
   }
   def addAllElement(elements: Seq[UiElement]) = elements.foreach(addElement)
 
-  def addEdge(element: UiElement) = edges.append(new ActionEdge(parent, element))
+  def addEdge(element: UiElement) = edges.add(new ActionEdge(parent, element))
 
   def toXml = {
-    <Node view={view}>
+    <Node view={view} elementCount={elementsVisited.size.toString}>
       {edges.map(edge => <Edge>
                             <To>{edge.destView.View}</To>
                             <Click>{edge.Element.toString}</Click>
