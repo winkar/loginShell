@@ -22,7 +22,7 @@ class AppTraversal private[winkar](var appPath: String) {
   var logDir: String = ""
   private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
-  val maxDepth = 4
+  val maxDepth = 10
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = mutable.Map[String,Int]()
 
