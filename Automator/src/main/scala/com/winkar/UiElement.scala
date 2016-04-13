@@ -79,7 +79,7 @@ class UiElement(element: AndroidElement, view: String) {
 
   val contentDesc: String = element.getAttribute("name")
 
-
+  var parentView: ViewNode = null
 
 
   var willChangeCurrentUI: Boolean = false
@@ -100,13 +100,21 @@ class UiElement(element: AndroidElement, view: String) {
 
   def click() = {
     element.click()
+    parentView.elementsVisited(this) = true
     clicked = true
   }
 
 
 //  def isEmpty = (text + resourceId).trim.isEmpty
 
-  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !UiElement.urlVisited(this.toString) && element.isDisplayed
+  def shouldClick: Boolean = {
+    !inBlackList && !isBack && validTag &&     //Valid Check
+      element.isDisplayed &&  // Display Check
+      ((!UiElement.urlVisited(this.toString) && !clicked)
+        ||
+        (clicked && !parentView.parent.getNode(destView).visitComplete))  // Visited check
+
+  }
 
 
   override def toString: String = s"Tag:$tagName;" +

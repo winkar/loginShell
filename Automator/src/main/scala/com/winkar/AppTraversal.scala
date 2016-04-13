@@ -98,15 +98,8 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def traversal() {
     val currentView = getCurrentView
-//    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
-
-    val depth = depthMap.get(currentView) match {
-      case Some(d) => d
-      case None =>
-        depthMap.update(currentView, currentDepth)
-        uiGraph.addNode(currentView)
-        currentDepth
-    }
+    val currentNode = uiGraph.getNode(currentView)
+    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
 
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
@@ -118,6 +111,8 @@ class AppTraversal private[winkar](var appPath: String) {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
         var clickableElements = getClickableElements()
+        currentNode.addAllElement(clickableElements)
+
         log.info(s"${clickableElements.size} clickable elements found on view")
         if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
           throw new LoginUiFoundException(currentView)
@@ -133,7 +128,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
                 val viewAfterClick = getCurrentView
                 element.destView = viewAfterClick
-                uiGraph.getNode(currentView).addEdge(element)
+                currentNode.addEdge(element)
 
                 if (element.destView==lastView) {
                   element.isBack = true
@@ -160,7 +155,7 @@ class AppTraversal private[winkar](var appPath: String) {
                       currentDepth += 1
                       jumpStack.push(currentView)
                       traversal()
-                      jumpStack.pop()
+                      while (jumpStack.top!=currentView) jumpStack.pop()
                       currentDepth -= 1
                   }
                 }
@@ -172,6 +167,7 @@ class AppTraversal private[winkar](var appPath: String) {
                   log.info("Cannot locate element")
                   log.info("Reload clickable elements")
                   clickableElements = getClickableElements()
+                  currentNode.addAllElement(clickableElements)
                   log.info(s"${clickableElements.size} elements found")
               }
             }

@@ -8,10 +8,20 @@ import java.io.PrintWriter
 
 import scala.collection.mutable
 
+
 class ViewNode(graph: UiGraph, view: String) {
   val parent = graph
   def View = view
   val edges = mutable.ListBuffer[ActionEdge]()
+  def visitComplete: Boolean = elementsVisited.values.forall(a=>a)
+
+  val elementsVisited = mutable.HashMap[UiElement, Boolean]()
+
+  def addElement(uiElement: UiElement) = {
+    elementsVisited.update(uiElement, false)
+    uiElement.parentView = this
+  }
+  def addAllElement(elements: Seq[UiElement]) = elements.foreach(addElement)
 
   def addEdge(element: UiElement) = edges.append(new ActionEdge(parent, element))
 
@@ -34,6 +44,8 @@ class ActionEdge(graph: UiGraph, element: UiElement) {
 
 class UiGraph {
   val nodes = mutable.Map[String, ViewNode]()
+  val visitCompleteMap = mutable.HashSet[ViewNode]()
+
 
   def getNode(view: String) = nodes.getOrElseUpdate(view, new ViewNode(this, view))
 
