@@ -211,8 +211,7 @@ class AppTraversal private[winkar](var appPath: String) {
     appiumAgent = new AppiumAgent(appPath)
     try {
       log.info(s"Start testing apk: $appPath")
-      appPackage = AndroidUtils.getPackageName(appPath)
-      log.info("Get package Name: " + appPackage)
+      appPackage = GlobalConfig.currentPackage
 
       if (!createLogDir) {
         throw new IOException("Directory not created")

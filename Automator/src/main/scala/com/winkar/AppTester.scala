@@ -1,8 +1,10 @@
 package com.winkar
 
 import java.io.{File, PrintWriter, StringWriter}
+import java.nio.file.Paths
 
 import org.apache.log4j.Logger
+
 import scala.collection.mutable
 
 trait AppTester {
@@ -20,22 +22,35 @@ class MultiAppTester(var apkDirectoryRoot: String) extends AppTester {
   val loginFoundAppList = mutable.ListBuffer[String]()
 
 
+
   override def startTest() {
     val apkRoot: File = new File(apkDirectoryRoot)
     try {
       for (path <- apkRoot.list) {
         try {
-            log.info(String.format("Testing apk %s", path))
-            val appTraversal: AppTraversal = new AppTraversal(apkDirectoryRoot + File.separator + path)
-            appTraversal.start() match {
-              case TravelResult.Complete =>
-              case TravelResult.Fail =>
-                failedAppList.append(path)
-              case TravelResult.LoginUiFound =>
-                loginFoundAppList.append(path)
+            val fullPath = Paths.get(apkDirectoryRoot, path).toString
+            GlobalConfig.currentPackage = AndroidUtils.getPackageName(fullPath)
+
+            if (!GlobalConfig.fast ||
+              !new File(Paths.get("log", GlobalConfig.currentPackage, "site.xml").toString).exists()) {
+
+              log.info(String.format("Testing apk %s", path))
+              log.info("Get package Name: " + GlobalConfig.currentPackage)
+
+
+              val appTraversal: AppTraversal = new AppTraversal(fullPath)
+              appTraversal.start() match {
+                case TravelResult.Complete =>
+                case TravelResult.Fail =>
+                  failedAppList.append(path)
+                case TravelResult.LoginUiFound =>
+                  loginFoundAppList.append(path)
+              }
+              appCount += 1
+              log.info(String.format("Stop testing apk %s", path))
             }
-            appCount += 1
-            log.info(String.format("Stop testing apk %s", path))
+
+
         } catch {
           case e: org.openqa.selenium.WebDriverException =>
             val sw = new StringWriter

@@ -11,6 +11,11 @@ object Configure {
   val Modes = List(SingleAppTest, MultiAppTest)
 }
 
+object GlobalConfig {
+  var fast: Boolean = true
+  var currentPackage = ""
+}
+
 case class Configure(
                       mode: String = "SingleAppTest",
                       apkFileList: Seq[String] = null,
@@ -18,6 +23,7 @@ case class Configure(
                       configFile: String = null,
                       apkDirectory: String = "",
 //                      verbose: Boolean,
+                      fast : Boolean = true,
                       kwargs: Map[String,String] = Map()
                     )
 
