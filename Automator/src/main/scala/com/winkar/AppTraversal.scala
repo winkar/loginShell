@@ -22,7 +22,7 @@ class AppTraversal private[winkar](var appPath: String) {
   var logDir: String = ""
   private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
-  val maxDepth = 10
+  val maxDepth = 100
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = mutable.Map[String,Int]()
 
@@ -117,6 +117,7 @@ class AppTraversal private[winkar](var appPath: String) {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
         var clickableElements = getClickableElements()
+        clickableElements = clickableElements.filter(!_.clicked)  ++ clickableElements.filter(_.clicked)
         currentNode.addAllElement(clickableElements)
 
         log.info(s"${clickableElements.size} clickable elements found on view")
@@ -125,9 +126,11 @@ class AppTraversal private[winkar](var appPath: String) {
         }
 
         try {
-          clickableElements.foreach(element => {
-            if (element.shouldClick) {
-              try {
+          clickableElements.foreach(f = element => {
+            if (element.shouldClick) try {
+
+              if (!element.visited || (element.visited && !element.visitComplete
+                && !jumpStack.contains(element.destView))) {
                 log.info("Click " + element.toString)
                 element.click()
                 lastClickedElement = element
@@ -136,7 +139,7 @@ class AppTraversal private[winkar](var appPath: String) {
                 element.destView = viewAfterClick
                 currentNode.addEdge(element)
 
-                if (element.destView==lastView) {
+                if (element.destView == lastView) {
                   element.isBack = true
                 }
 
@@ -156,38 +159,40 @@ class AppTraversal private[winkar](var appPath: String) {
 
                       // 如果无法回到原App, 重新启动App
                       checkCurrentPackage()
-//                      checkCurrentView(expectedView = currentView)
+                    //                      checkCurrentView(expectedView = currentView)
                     case _ =>
                       jumpStack.push(currentView)
                       traversal()
-                      while (jumpStack.top!=currentView) jumpStack.pop()
+                      while (jumpStack.top != currentView) jumpStack.pop()
                   }
                 }
-              } catch {
-                // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
-                case e: org.openqa.selenium.NoSuchElementException =>
-                  checkCurrentPackage()
-                  checkCurrentView(expectedView = currentView)
-                  log.info("Cannot locate element")
-                  log.info("Reload clickable elements")
-                  clickableElements = getClickableElements()
-                  currentNode.addAllElement(clickableElements)
-                  log.info(s"${clickableElements.size} elements found")
               }
+            }
+            catch {
+              // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
+              case e: org.openqa.selenium.NoSuchElementException =>
+                checkCurrentPackage()
+                checkCurrentView(expectedView = currentView)
+                log.info("Cannot locate element")
+                log.info("Reload clickable elements")
+                clickableElements = getClickableElements()
+                currentNode.addAllElement(clickableElements)
+                log.info(s"${clickableElements.size} elements found")
             }
             else {
               currentNode.removeElement(element)
             }
           })
           back()
-        } catch {
+        }
+        catch {
           case ex: ShouldRestartAppException =>
             restartApp()
             traversal()
           case ex: UnexpectedViewException =>
             log.info("View changed unexpected")
             log.info(s"Current view is $currentView")
-            // Do nothing but jump out of inner foreach loop
+          // Do nothing but jump out of inner foreach loop
         }
     }
   }

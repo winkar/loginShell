@@ -107,15 +107,13 @@ class UiElement(element: AndroidElement, view: String) {
 
 //  def isEmpty = (text + resourceId).trim.isEmpty
 
-  def shouldClick: Boolean = {
-    !inBlackList && !isBack && validTag &&     //Valid Check
-      element.isDisplayed &&  // Display Check
-      destView != srcView && // Route Check
-      ((!UiElement.urlVisited(this.toString) && !clicked)
-        ||
-        (clicked && !parentView.parent.getNode(destView).visitComplete))  // Visited check
+  def shouldClick: Boolean = !inBlackList && !isBack && validTag &&     //Valid Check
+    element.isDisplayed &&  // Display Check
+    destView != srcView // Route Check
 
-  }
+  def visited: Boolean = UiElement.urlVisited(this.toString) || clicked
+
+  def visitComplete: Boolean = clicked && !parentView.parent.getNode(destView).visitComplete
 
   override def hashCode() = toString.hashCode
   override def equals(obj: Any) = obj match {
@@ -124,7 +122,8 @@ class UiElement(element: AndroidElement, view: String) {
     case _ => false
   }
 
-  override def toString: String = s"View:$srcView;Tag:$tagName;" +
+
+  override def toString: String = s"View:$srcView;  Tag:$tagName;" +
     s"Text:$text;" +
     s"resourceId:$resourceId;" +
     s"contentDesc:$contentDesc;"
