@@ -100,7 +100,6 @@ class UiElement(element: AndroidElement, view: String) {
 
   def click() = {
     element.click()
-    parentView.elementsVisited(this) = true
     clicked = true
   }
 
@@ -123,7 +122,7 @@ class UiElement(element: AndroidElement, view: String) {
   }
 
 
-  override def toString: String = s"View:$srcView;  Tag:$tagName;" +
+  override def toString: String = s"View:$srcView; Tag:$tagName;" +
     s"Text:$text;" +
     s"resourceId:$resourceId;" +
     s"contentDesc:$contentDesc;"

@@ -27,10 +27,16 @@ class AppiumAgent(val appPath: String) {
 
 
 
-  def takeScreenShot(logDir: String) {
+  def takeScreenShot(logDir: String, fn: String = null) {
     val screenShotFile: Array[Byte] = driver.getScreenshotAs(OutputType.BYTES)
 
-    FileUtils.writeByteArrayToFile(Paths.get(logDir, s"$screenShotCounter.png").toFile, screenShotFile)
+
+    val filename = fn match {
+      case null => s"$screenShotCounter.png"
+      case _ => s"$fn.png"
+    }
+
+    FileUtils.writeByteArrayToFile(Paths.get(logDir, filename).toFile, screenShotFile)
     screenShotCounter += 1
   }
 

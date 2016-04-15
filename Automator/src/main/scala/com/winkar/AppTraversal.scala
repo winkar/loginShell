@@ -95,6 +95,15 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def checkCurrentView(expectedView: String) = if (expectedView!=getCurrentView) throw new UnexpectedViewException
 
+  def checkAutoChange(currentView: String, currentNode: ViewNode) = {
+    val changed = getCurrentView
+    if (changed != currentView && !currentNode.hasAlias(changed)) {
+      val changed = getCurrentView
+      log.info(s"Automated changed to view: $changed; Add alias")
+      currentNode.addAlias(changed)
+    }
+  }
+
   def traversal() {
     val currentView = getCurrentView
     val currentNode = uiGraph.getNode(currentView)
@@ -109,14 +118,17 @@ class AppTraversal private[winkar](var appPath: String) {
 
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
-    appiumAgent.takeScreenShot(logDir)
+    appiumAgent.takeScreenShot(logDir, currentView)
 
-
+//    log.info(new xml.PrettyPrinter(80, 4).format(xml.XML.loadString(appiumAgent.driver.getPageSource)))
 
     depth match {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
         var clickableElements = getClickableElements()
+
+        checkAutoChange(currentView, currentNode)
+
         clickableElements = clickableElements.filter(!_.clicked)  ++ clickableElements.filter(_.clicked)
         currentNode.addAllElement(clickableElements)
 
@@ -126,64 +138,68 @@ class AppTraversal private[winkar](var appPath: String) {
         }
 
         try {
-          clickableElements.foreach(f = element => {
-            if (element.shouldClick) try {
+          clickableElements.foreach(element => {
+            currentNode.elementsVisited(element) = true
 
-              if (!element.visited || (element.visited && !element.visitComplete
-                && !jumpStack.contains(element.destView))) {
-                log.info("Click " + element.toString)
-                element.click()
-                lastClickedElement = element
+            if (element.shouldClick) {
+              try {
 
-                val viewAfterClick = getCurrentView
-                element.destView = viewAfterClick
-                currentNode.addEdge(element)
+                if (!element.visited || (element.visited && !element.visitComplete
+                  && !jumpStack.contains(element.destView))) {
+                  log.info("Click " + element.toString)
+                  element.click()
+                  lastClickedElement = element
 
-                if (element.destView == lastView) {
-                  element.isBack = true
-                }
+                  val viewAfterClick = getCurrentView
+                  element.destView = viewAfterClick
+                  currentNode.addEdge(element)
 
-                if (viewAfterClick != currentView) {
-                  log.info("Jumped to view " + viewAfterClick)
+                  if (element.destView == lastView) {
+                    element.isBack = true
+                  }
 
-                  appiumAgent.currentPackage match {
-                    case pkg: String if pkg != appPackage =>
-                      log.info("Jumped out of App")
-                      log.info(s"Current at app $pkg")
+                  if (viewAfterClick != currentView) {
+                    log.info("Jumped to view " + viewAfterClick)
 
-                      if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
+                    appiumAgent.currentPackage match {
+                      case pkg: String if pkg != appPackage =>
+                        log.info("Jumped out of App")
+                        log.info(s"Current at app $pkg")
 
-                      log.info("Try back to app")
+                        if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
 
-                      back()
+                        log.info("Try back to app")
 
-                      // 如果无法回到原App, 重新启动App
-                      checkCurrentPackage()
-                    //                      checkCurrentView(expectedView = currentView)
-                    case _ =>
-                      jumpStack.push(currentView)
-                      traversal()
-                      while (jumpStack.top != currentView) jumpStack.pop()
+                        back()
+
+                        // 如果无法回到原App, 重新启动App
+                        checkCurrentPackage()
+                      //                      checkCurrentView(expectedView = currentView)
+                      case _ =>
+                        jumpStack.push(currentView)
+                        traversal()
+                        while (jumpStack.top != currentView) jumpStack.pop()
+                    }
                   }
                 }
               }
-            }
-            catch {
-              // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
-              case e: org.openqa.selenium.NoSuchElementException =>
-                checkCurrentPackage()
-                checkCurrentView(expectedView = currentView)
-                log.info("Cannot locate element")
-                log.info("Reload clickable elements")
-                clickableElements = getClickableElements()
-                currentNode.addAllElement(clickableElements)
-                log.info(s"${clickableElements.size} elements found")
-            }
-            else {
-              currentNode.removeElement(element)
+              catch {
+                // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
+                case e: org.openqa.selenium.NoSuchElementException =>
+                  checkCurrentPackage()
+  //                checkCurrentView(expectedView = currentView)
+
+                  checkAutoChange(currentView, currentNode)
+
+
+                  log.info("Cannot locate element")
+                  log.info("Reload clickable elements")
+                  clickableElements = getClickableElements()
+                  currentNode.addAllElement(clickableElements)
+                  log.info(s"${clickableElements.size} elements found")
+              }
             }
           })
-          back()
         }
         catch {
           case ex: ShouldRestartAppException =>
@@ -194,6 +210,7 @@ class AppTraversal private[winkar](var appPath: String) {
             log.info(s"Current view is $currentView")
           // Do nothing but jump out of inner foreach loop
         }
+        back()
     }
   }
 
@@ -257,7 +274,7 @@ class AppTraversal private[winkar](var appPath: String) {
     } finally {
       log.info("Take screenShot on quit")
       if (appiumAgent!=null) {
-        appiumAgent.takeScreenShot(logDir)
+        appiumAgent.takeScreenShot(logDir, "Quit")
         uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
         log.info("Remove app from device")
         appiumAgent.removeApp(appPackage)

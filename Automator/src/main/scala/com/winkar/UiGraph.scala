@@ -12,10 +12,15 @@ import scala.collection.mutable
 class ViewNode(graph: UiGraph, view: String) {
   val parent = graph
   def View = view
+
+  val aliasView = mutable.Set[String]()
+
   val edges = mutable.HashSet[ActionEdge]()
   def visitComplete: Boolean = elementsVisited.values.forall(a=>a)
 
   var depth = -1
+
+  def elements = elementsVisited.keySet
 
   val elementsVisited = mutable.HashMap[UiElement, Boolean]()
 
@@ -24,11 +29,20 @@ class ViewNode(graph: UiGraph, view: String) {
     uiElement.parentView = this
   }
 
+  def addAlias(view: String) = {
+    aliasView.add(view)
+    parent.addNode(view, this)
+  }
+
+  def hasAlias(view: String) = aliasView.contains(view)
+
   def removeElement(uiElement: UiElement) = elementsVisited.remove(uiElement)
 
   def addAllElement(elements: Seq[UiElement]) = elements.foreach(addElement)
 
   def addEdge(element: UiElement) = edges.add(new ActionEdge(parent, element))
+
+  def addEdge(edge: ActionEdge) = edges.add(edge)
 
   def toXml = {
     <Node view={view} elementCount={elementsVisited.size.toString} depth={depth.toString}>
@@ -41,10 +55,17 @@ class ViewNode(graph: UiGraph, view: String) {
   }
 }
 
-class ActionEdge(graph: UiGraph, element: UiElement) {
+object ActionType extends Enumeration {
+  val Click, Auto = Value
+}
+
+class ActionEdge(graph: UiGraph, dstView: ViewNode, actionType: ActionType.Value, element: UiElement = null) {
+  val action = actionType
   val parent = graph
   def Element = element
-  val destView = parent.getNode(element.destView)
+
+  def this(graph: UiGraph, uiElement: UiElement) = this(graph, graph.getNode(uiElement.destView), ActionType.Click, uiElement)
+  val destView = dstView
 }
 
 class UiGraph {
@@ -55,6 +76,7 @@ class UiGraph {
   def getNode(view: String) = nodes.getOrElseUpdate(view, new ViewNode(this, view))
 
   def addNode(view: String) = nodes.update(view, new ViewNode(this, view))
+  def addNode(view: String, node: ViewNode) = nodes.update(view, node)
 
   def toXml = {
     <UI>
