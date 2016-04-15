@@ -57,33 +57,20 @@ class AppTraversal private[winkar](var appPath: String) {
   val elements = mutable.Map[String, UiElement]()
 
 
-  def getClickableElements(retryTime :Int = 1): List[UiElement] = {
-    val view = getCurrentView
-
-    //TODO 生成UiElement的逻辑中有部分代码被重复调用,可以考虑坐下修改进行简化
-    val clickableElements = appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
-      .map( elm => (elm , UiElement.toUrl(view, elm)))
-      .map(
-        elm => elements.getOrElseUpdate(elm._2, new UiElement(elm._1, view))
-      )
-
-
-//    val p = new scala.xml.PrettyPrinter(80, 4)
-//    log.info(p.format(XML.loadString(appiumAgent.driver.getPageSource))  )
-
-    clickableElements match {
+  @scala.annotation.tailrec
+  final def getClickableElements(view: String, retryTime :Int = 1): List[UiElement] = {
+    appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
+        .map(new UiElement(_, view)) match {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
         Thread.sleep(3000)
-        //TODO: Handle activity change when sleeping
-        getClickableElements(0)
+        getClickableElements(view, 0)
     }
   }
 
   def checkPermissions(): Unit ={
     log.info("Checking All Permissions")
-//    appiumAgent.driver.findElementByClassName("android.widget.CheckBox").click
     // TODO 是否可能默认没有check上?
     log.info("Confirm")
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
@@ -109,6 +96,7 @@ class AppTraversal private[winkar](var appPath: String) {
     val currentNode = uiGraph.getNode(currentView)
 //    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
 
+
     val depth = currentNode.depth match {
       case -1 =>
         currentNode.depth = if (lastView != "") uiGraph.getNode(lastView).depth + 1 else 0
@@ -125,14 +113,21 @@ class AppTraversal private[winkar](var appPath: String) {
     depth match {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
-        var clickableElements = getClickableElements()
+        var clickableElements = currentNode.visited match  {
+          case true => currentNode.elements
+          case false =>
+            val elems: List[UiElement] = getClickableElements(currentView)
+            checkAutoChange(currentView, currentNode)
+            currentNode.addAllElement(elems)
+            elems
+        }
 
-        checkAutoChange(currentView, currentNode)
-
+        // sort elements to check none clicked elements first
         clickableElements = clickableElements.filter(!_.clicked)  ++ clickableElements.filter(_.clicked)
-        currentNode.addAllElement(clickableElements)
 
         log.info(s"${clickableElements.size} clickable elements found on view")
+
+
         if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
           throw new LoginUiFoundException(currentView)
         }
@@ -194,7 +189,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
                   log.info("Cannot locate element")
                   log.info("Reload clickable elements")
-                  clickableElements = getClickableElements()
+                  clickableElements = getClickableElements(currentView  )
                   currentNode.addAllElement(clickableElements)
                   log.info(s"${clickableElements.size} elements found")
               }

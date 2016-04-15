@@ -6,7 +6,7 @@ package com.winkar
 
 import java.io.PrintWriter
 
-import scala.collection.mutable
+import scala.collection.{Set, mutable}
 
 
 class ViewNode(graph: UiGraph, view: String) {
@@ -16,11 +16,14 @@ class ViewNode(graph: UiGraph, view: String) {
   val aliasView = mutable.Set[String]()
 
   val edges = mutable.HashSet[ActionEdge]()
+
+  var visited = false
+
   def visitComplete: Boolean = elementsVisited.values.forall(a=>a)
 
   var depth = -1
 
-  def elements = elementsVisited.keySet
+  def elements: List[UiElement] = elementsVisited.keySet.toList
 
   val elementsVisited = mutable.HashMap[UiElement, Boolean]()
 

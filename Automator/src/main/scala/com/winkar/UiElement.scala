@@ -18,19 +18,19 @@ object UiElement {
     s"contentDesc:${elm.getAttribute("name")};"
 
   def toUrl(view: String, elm: AndroidElement): String = {
-    s"${view}_${formatAndroidElement(elm)}"
+    s"${formatAndroidElement(elm)}"
   }
 
-  val visitedUrl = mutable.Set[String]()
+//  val visitedUrl = mutable.Set[String]()
 
-  def urlVisited(url: String): Boolean = {
-    if (visitedUrl.contains(url)) {
-      true
-    } else {
-      visitedUrl.add(url)
-      false
-    }
-  }
+//  def urlVisited(url: String): Boolean = {
+//    if (visitedUrl.contains(url)) {
+//      true
+//    } else {
+//      visitedUrl.add(url)
+//      false
+//    }
+//  }
 
   val noClickTags = Array(
     "android.widget.EditText",
@@ -110,7 +110,7 @@ class UiElement(element: AndroidElement, view: String) {
     element.isDisplayed &&  // Display Check
     destView != srcView // Route Check
 
-  def visited: Boolean = UiElement.urlVisited(this.toString) || clicked
+  def visited: Boolean = clicked
 
   def visitComplete: Boolean = clicked && !parentView.parent.getNode(destView).visitComplete
 
@@ -122,7 +122,7 @@ class UiElement(element: AndroidElement, view: String) {
   }
 
 
-  override def toString: String = s"View:$srcView; Tag:$tagName;" +
+  override def toString: String = s"Tag:$tagName;" +
     s"Text:$text;" +
     s"resourceId:$resourceId;" +
     s"contentDesc:$contentDesc;"
