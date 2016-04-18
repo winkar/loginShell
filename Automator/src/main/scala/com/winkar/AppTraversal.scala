@@ -76,7 +76,7 @@ class AppTraversal private[winkar](var appPath: String) {
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
   }
 
-  def getCurrentView: String = s"${appiumAgent.driver.currentActivity}_${MessageDigest.Md5(appiumAgent.driver.getPageSource)}"
+  def getCurrentView: String = s"${appiumAgent.driver.currentActivity}_${HierarchyUtil.uiStructureHashDigest(appiumAgent.driver.getPageSource)}"
 
   def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
 
@@ -91,10 +91,19 @@ class AppTraversal private[winkar](var appPath: String) {
     }
   }
 
-  def traversal() {
+  def traversal(expectView: String = null) {
     val currentView = getCurrentView
     val currentNode = uiGraph.getNode(currentView)
 //    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+
+    if (expectView!=null  && currentView != expectView) {
+      log.info(s"Automated changed to view: $currentView; Add alias")
+      currentNode.addAlias(expectView)
+    }
+
+
+    val nodeVisited = currentNode.visited
+    currentNode.visited = true
 
 
     val depth = currentNode.depth match {
@@ -108,12 +117,12 @@ class AppTraversal private[winkar](var appPath: String) {
     log.info("Current traversal depth is " + depth)
     appiumAgent.takeScreenShot(logDir, currentView)
 
-//    log.info(new xml.PrettyPrinter(80, 4).format(xml.XML.loadString(appiumAgent.driver.getPageSource)))
+//    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
     depth match {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
-        var clickableElements = currentNode.visited match  {
+        var clickableElements = nodeVisited match  {
           case true => currentNode.elements
           case false =>
             val elems: List[UiElement] = getClickableElements(currentView)
@@ -123,7 +132,7 @@ class AppTraversal private[winkar](var appPath: String) {
         }
 
         // sort elements to check none clicked elements first
-        clickableElements = clickableElements.filter(!_.clicked)  ++ clickableElements.filter(_.clicked)
+        clickableElements = clickableElements.filter(!_.visited)  ++ clickableElements.filter(_.visited)
 
         log.info(s"${clickableElements.size} clickable elements found on view")
 
@@ -172,7 +181,7 @@ class AppTraversal private[winkar](var appPath: String) {
                       //                      checkCurrentView(expectedView = currentView)
                       case _ =>
                         jumpStack.push(currentView)
-                        traversal()
+                        traversal(viewAfterClick)
                         while (jumpStack.top != currentView) jumpStack.pop()
                     }
                   }
@@ -220,7 +229,7 @@ class AppTraversal private[winkar](var appPath: String) {
   }
 
 
-  val traversalTimeout = 10
+  val traversalTimeout = 15
 
 
 

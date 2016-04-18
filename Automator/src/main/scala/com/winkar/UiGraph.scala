@@ -6,14 +6,19 @@ package com.winkar
 
 import java.io.PrintWriter
 
-import scala.collection.{Set, mutable}
+import org.apache.log4j.Logger
+
+import scala.collection.mutable
 
 
 class ViewNode(graph: UiGraph, view: String) {
+  val log: Logger = Logger.getLogger(Automator.getClass.getName)
+
   val parent = graph
   def View = view
 
   val aliasView = mutable.Set[String]()
+  aliasView.add(view)
 
   val edges = mutable.HashSet[ActionEdge]()
 
@@ -32,9 +37,19 @@ class ViewNode(graph: UiGraph, view: String) {
     uiElement.parentView = this
   }
 
+  def mergeNode(node: ViewNode) = {
+    if (node.depth < this.depth) {
+      this.depth = node.depth
+    }
+
+    node.aliasView.foreach(v => {
+      this.aliasView.add(v)
+      parent.addNode(v, this)
+    })
+  }
+
   def addAlias(view: String) = {
-    aliasView.add(view)
-    parent.addNode(view, this)
+    mergeNode(parent.getNode(view))
   }
 
   def hasAlias(view: String) = aliasView.contains(view)
@@ -48,12 +63,17 @@ class ViewNode(graph: UiGraph, view: String) {
   def addEdge(edge: ActionEdge) = edges.add(edge)
 
   def toXml = {
-    <Node view={view} elementCount={elementsVisited.size.toString} depth={depth.toString}>
+    <Node elementCount={elementsVisited.size.toString} depth={depth.toString}>
+      <Views>
+        {this.aliasView.map(view => <View>{view}</View>)}
+      </Views>
+      <Edges>
       {edges.map(edge => <Edge>
                             <To>{edge.destView.View}</To>
                             <Click>{edge.Element.toString}</Click>
                         </Edge>)
                       }
+      </Edges>
     </Node>
   }
 }
