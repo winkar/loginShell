@@ -18,19 +18,19 @@ object UiElement {
     s"contentDesc:${elm.getAttribute("name")};"
 
   def toUrl(view: String, elm: AndroidElement): String = {
-    s"${view}_${formatAndroidElement(elm)}"
+    s"${formatAndroidElement(elm)}"
   }
 
-  val visitedUrl = mutable.Set[String]()
+//  val visitedUrl = mutable.Set[String]()
 
-  def urlVisited(url: String): Boolean = {
-    if (visitedUrl.contains(url)) {
-      true
-    } else {
-      visitedUrl.add(url)
-      false
-    }
-  }
+//  def urlVisited(url: String): Boolean = {
+//    if (visitedUrl.contains(url)) {
+//      true
+//    } else {
+//      visitedUrl.add(url)
+//      false
+//    }
+//  }
 
   val noClickTags = Array(
     "android.widget.EditText",
@@ -79,7 +79,7 @@ class UiElement(element: AndroidElement, view: String) {
 
   val contentDesc: String = element.getAttribute("name")
 
-
+  var parentView: ViewNode = null
 
 
   var willChangeCurrentUI: Boolean = false
@@ -106,7 +106,20 @@ class UiElement(element: AndroidElement, view: String) {
 
 //  def isEmpty = (text + resourceId).trim.isEmpty
 
-  def shouldClick: Boolean = !inBlackList && !clicked && !isBack && validTag && !UiElement.urlVisited(this.toString) && element.isDisplayed
+  def shouldClick: Boolean = !inBlackList && !isBack && validTag &&     //Valid Check
+    element.isDisplayed &&  // Display Check
+    destView != srcView // Route Check
+
+  def visited: Boolean = clicked
+
+  def visitComplete: Boolean = clicked && !parentView.parent.getNode(destView).visitComplete
+
+  override def hashCode() = toString.hashCode
+  override def equals(obj: Any) = obj match {
+    case ele: UiElement =>
+      ele.toString == toString
+    case _ => false
+  }
 
 
   override def toString: String = s"Tag:$tagName;" +

@@ -22,7 +22,7 @@ class AppTraversal private[winkar](var appPath: String) {
   var logDir: String = ""
   private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
-  val maxDepth = 4
+  val maxDepth = 100
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = mutable.Map[String,Int]()
 
@@ -38,6 +38,7 @@ class AppTraversal private[winkar](var appPath: String) {
     }
   }
 
+  val uiGraph = new UiGraph()
 
   class ShouldRestartAppException extends RuntimeException
   class UnexpectedViewException extends RuntimeException
@@ -54,128 +55,166 @@ class AppTraversal private[winkar](var appPath: String) {
   }
 
   val elements = mutable.Map[String, UiElement]()
-  var currentDepth = 0
 
 
-  def getClickableElements(retryTime :Int = 1): List[UiElement] = {
-    val view = getCurrentView
-
-    //TODO 生成UiElement的逻辑中有部分代码被重复调用,可以考虑坐下修改进行简化
-    val clickableElements = appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
-      .map( elm => (elm , UiElement.toUrl(view, elm)))
-      .map(
-        elm => elements.getOrElseUpdate(elm._2, new UiElement(elm._1, view))
-      )
-
-
-//    val p = new scala.xml.PrettyPrinter(80, 4)
-//    log.info(p.format(XML.loadString(appiumAgent.driver.getPageSource))  )
-
-    clickableElements match {
+  @scala.annotation.tailrec
+  final def getClickableElements(view: String, retryTime :Int = 1): List[UiElement] = {
+    appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
+        .map(new UiElement(_, view)) match {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
         Thread.sleep(3000)
-        //TODO: Handle activity change when sleeping
-        getClickableElements(0)
+        getClickableElements(view, 0)
     }
   }
 
   def checkPermissions(): Unit ={
     log.info("Checking All Permissions")
-//    appiumAgent.driver.findElementByClassName("android.widget.CheckBox").click
     // TODO 是否可能默认没有check上?
     log.info("Confirm")
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
   }
 
-  def getCurrentView: String = s"${appiumAgent.driver.currentActivity}_${MessageDigest.Md5(appiumAgent.driver.getPageSource)}"
+  def getCurrentView: String = s"${appiumAgent.driver.currentActivity}_${HierarchyUtil.uiStructureHashDigest(appiumAgent.driver.getPageSource)}"
 
   def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
 
   def checkCurrentView(expectedView: String) = if (expectedView!=getCurrentView) throw new UnexpectedViewException
 
-  def traversal() {
-    val currentView = getCurrentView
+  def checkAutoChange(currentView: String, currentNode: ViewNode) = {
+    val changed = getCurrentView
+    if (changed != currentView && !currentNode.hasAlias(changed)) {
+      val changed = getCurrentView
+      log.info(s"Automated changed to view: $changed; Add alias")
+      currentNode.addAlias(changed)
+    }
+  }
 
-    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+  def traversal(expectView: String = null) {
+    val currentView = getCurrentView
+    val currentNode = uiGraph.getNode(currentView)
+//    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
+
+    if (expectView!=null  && currentView != expectView) {
+      log.info(s"Automated changed to view: $currentView; Add alias")
+      currentNode.addAlias(expectView)
+    }
+
+
+    val nodeVisited = currentNode.visited
+    currentNode.visited = true
+
+
+    val depth = currentNode.depth match {
+      case -1 =>
+        currentNode.depth = if (lastView != "") uiGraph.getNode(lastView).depth + 1 else 0
+        currentNode.depth
+      case d: Int  => d
+    }
+
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
-    appiumAgent.takeScreenShot(logDir)
+    appiumAgent.takeScreenShot(logDir, currentView)
 
-
+//    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
     depth match {
       case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
       case _ =>
-        var clickableElements = getClickableElements()
+        var clickableElements = nodeVisited match  {
+          case true => currentNode.elements
+          case false =>
+            val elems: List[UiElement] = getClickableElements(currentView)
+            checkAutoChange(currentView, currentNode)
+            currentNode.addAllElement(elems)
+            elems
+        }
+
+        // sort elements to check none clicked elements first
+        clickableElements = clickableElements.filter(!_.visited)  ++ clickableElements.filter(_.visited)
+
         log.info(s"${clickableElements.size} clickable elements found on view")
+
+
         if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
           throw new LoginUiFoundException(currentView)
         }
 
         try {
           clickableElements.foreach(element => {
+            currentNode.elementsVisited(element) = true
+
             if (element.shouldClick) {
               try {
-                log.info("Click " + element.toString)
-                element.click()
-                lastClickedElement = element
 
-                val viewAfterClick = getCurrentView
-                element.destView = viewAfterClick
+                if (!element.visited || (element.visited && !element.visitComplete
+                  && !jumpStack.contains(element.destView))) {
+                  log.info("Click " + element.toString)
+                  element.click()
+                  lastClickedElement = element
 
-                if (element.destView==lastView) {
-                  element.isBack = true
-                }
+                  val viewAfterClick = getCurrentView
+                  element.destView = viewAfterClick
+                  currentNode.addEdge(element)
 
-                if (viewAfterClick != currentView) {
-                  log.info("Jumped to view " + viewAfterClick)
+                  if (element.destView == lastView) {
+                    element.isBack = true
+                  }
 
-                  appiumAgent.currentPackage match {
-                    case pkg: String if pkg != appPackage =>
-                      log.info("Jumped out of App")
-                      log.info(s"Current at app $pkg")
+                  if (viewAfterClick != currentView) {
+                    log.info("Jumped to view " + viewAfterClick)
 
-                      if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
+                    appiumAgent.currentPackage match {
+                      case pkg: String if pkg != appPackage =>
+                        log.info("Jumped out of App")
+                        log.info(s"Current at app $pkg")
 
-                      log.info("Try back to app")
+                        if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
 
-                      back()
+                        log.info("Try back to app")
 
-                      // 如果无法回到原App, 重新启动App
-                      checkCurrentPackage()
-//                      checkCurrentView(expectedView = currentView)
-                    case _ =>
-                      currentDepth += 1
-                      jumpStack.push(currentView)
-                      traversal()
-                      jumpStack.pop()
-                      currentDepth -= 1
+                        back()
+
+                        // 如果无法回到原App, 重新启动App
+                        checkCurrentPackage()
+                      //                      checkCurrentView(expectedView = currentView)
+                      case _ =>
+                        jumpStack.push(currentView)
+                        traversal(viewAfterClick)
+                        while (jumpStack.top != currentView) jumpStack.pop()
+                    }
                   }
                 }
-              } catch {
+              }
+              catch {
                 // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
                 case e: org.openqa.selenium.NoSuchElementException =>
                   checkCurrentPackage()
-                  checkCurrentView(expectedView = currentView)
+  //                checkCurrentView(expectedView = currentView)
+
+                  checkAutoChange(currentView, currentNode)
+
+
                   log.info("Cannot locate element")
                   log.info("Reload clickable elements")
-                  clickableElements = getClickableElements()
+                  clickableElements = getClickableElements(currentView  )
+                  currentNode.addAllElement(clickableElements)
                   log.info(s"${clickableElements.size} elements found")
               }
             }
           })
-          back()
-        } catch {
+        }
+        catch {
           case ex: ShouldRestartAppException =>
             restartApp()
             traversal()
           case ex: UnexpectedViewException =>
             log.info("View changed unexpected")
             log.info(s"Current view is $currentView")
-            // Do nothing but jump out of inner foreach loop
+          // Do nothing but jump out of inner foreach loop
         }
+        back()
     }
   }
 
@@ -190,16 +229,15 @@ class AppTraversal private[winkar](var appPath: String) {
   }
 
 
-  val traversalTimeout = 10
+  val traversalTimeout = 15
 
 
 
   def start(): TravelResult.Value = {
-    appiumAgent = new AppiumAgent(appPath)
     try {
+      appiumAgent = new AppiumAgent(appPath)
       log.info(s"Start testing apk: $appPath")
-      appPackage = AndroidUtils.getPackageName(appPath)
-      log.info("Get package Name: " + appPackage)
+      appPackage = GlobalConfig.currentPackage
 
       if (!createLogDir) {
         throw new IOException("Directory not created")
@@ -225,23 +263,28 @@ class AppTraversal private[winkar](var appPath: String) {
     catch {
       case e: LoginUiFoundException =>
         log.warn(s"Login Ui Found: ${e.loginUi} in package ${this.appPackage} at $appPath")
-        "LoginFound"
         TravelResult.LoginUiFound
       case e: TimeoutException =>
         log.warn("Timeout!")
         TravelResult.Fail
-      case e: Exception =>
+      case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
+        GlobalConfig.server.restart()
+        start()
+      case e: org.openqa.selenium.WebDriverException =>
         val sw = new StringWriter
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
         TravelResult.Fail
     } finally {
       log.info("Take screenShot on quit")
-      appiumAgent.takeScreenShot(logDir)
-      log.info("Remove app from device")
-      appiumAgent.removeApp(appPackage)
-      log.info("Quit")
-      appiumAgent.quit()
+      if (appiumAgent!=null) {
+        appiumAgent.takeScreenShot(logDir, "Quit")
+        uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
+        log.info("Remove app from device")
+        appiumAgent.removeApp(appPackage)
+        log.info("Quit")
+        appiumAgent.quit()
+      }
     }
   }
 }

@@ -43,6 +43,10 @@ object Automator extends App {
         (x, c) => c.copy(apkFileList = x)
       } text "apks to test"
 
+      opt[Boolean]("fast") action {
+        (x, c) => c.copy(fast = x)
+      } text "Fast mode(Skip tested apps)"
+
       help("help") text "prints this usage text"
 
       checkConfig {
@@ -86,9 +90,11 @@ object Automator extends App {
           }
         }
 
+        GlobalConfig.fast = configure.fast
+
         log.info("Automator test started")
         val server = new AppiumServer()
-
+        GlobalConfig.server = server
         try {
           mainTester.startTest()
         } finally  {
