@@ -275,6 +275,11 @@ class AppTraversal private[winkar](var appPath: String) {
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
         TravelResult.Fail
+      case e: Exception =>
+        val sw = new StringWriter
+        e.printStackTrace(new PrintWriter(sw))
+        log.warn(sw.toString)
+        TravelResult.Fail
     } finally {
       log.info("Take screenShot on quit")
       if (appiumAgent!=null) {
