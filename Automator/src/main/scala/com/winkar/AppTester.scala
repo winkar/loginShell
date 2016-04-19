@@ -2,8 +2,11 @@ package com.winkar
 
 import java.io.{File, PrintWriter, StringWriter}
 import java.nio.file.Paths
+import java.util.Date
 
 import org.apache.log4j.Logger
+import com.github.nscala_time.time.Imports._
+import org.joda.time.format.DateTimeFormatter
 
 import scala.collection.mutable
 
@@ -16,11 +19,12 @@ trait AppTester {
 
 
 class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
-  var appCount = 0
+  var appTested = 0
 
   val failedAppList = mutable.ListBuffer[String]()
   val loginFoundAppList = mutable.ListBuffer[String]()
-
+  val totalApkCount = ApkFiles.size
+  var totalTimeInSeconds = 0
 
   def this(apkDirectoryRoot: String) {
     this(
@@ -32,6 +36,8 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
     try {
       for (fullPath <- ApkFiles) {
         try {
+            val testStartTime = DateTime.now
+
             GlobalConfig.currentPackage = AndroidUtils.getPackageName(fullPath)
 
             val apkFileName = Paths.get(fullPath).getFileName.toString
@@ -51,11 +57,21 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
                 case TravelResult.LoginUiFound =>
                   loginFoundAppList.append(apkFileName)
               }
-              appCount += 1
+              appTested += 1
               log.info(String.format("Stop testing apk %s", apkFileName))
+
             }
 
+            val testEndTime = DateTime.now
 
+            val seconds = org.joda.time.Seconds.secondsBetween(testStartTime, testEndTime).getSeconds
+            totalTimeInSeconds += seconds
+            val averageTime = totalTimeInSeconds.asInstanceOf[Double]/ appTested
+
+            log.info(s"$seconds seconds used for $apkFileName")
+            log.info(s"$averageTime time cost for each apk in average ")
+            log.info(s"$appTested/$totalApkCount apks already tested")
+            log.info(s"${(totalApkCount - appTested) * averageTime} seconds remained")
         } catch {
           case e: org.openqa.selenium.WebDriverException =>
             val sw = new StringWriter
@@ -69,7 +85,7 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
         e.printStackTrace(new PrintWriter(sw))
         log.warn(sw.toString)
     } finally {
-      log.info(s"${ApkFiles.size} apps in total  $appCount apps tested, failed on ${failedAppList.size} apps, found ${loginFoundAppList.size} login Ui")
+      log.info(s"$totalApkCount apps in total  $appTested apps tested, failed on ${failedAppList.size} apps, found ${loginFoundAppList.size} login Ui")
 
 
       if (failedAppList.nonEmpty) {

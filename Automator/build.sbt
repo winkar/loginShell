@@ -11,6 +11,8 @@ libraryDependencies += "junit" % "junit" % "4.12"
 libraryDependencies += "io.appium" % "java-client" % "3.4.0"
 libraryDependencies += "org.scala-lang.modules" % "scala-xml_2.11" % "1.0.4"
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.4.0"
+libraryDependencies += "com.github.nscala-time" %% "nscala-time" % "2.12.0"
+
 resolvers += Resolver.sonatypeRepo("public")
 
 
