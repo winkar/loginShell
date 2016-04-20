@@ -95,6 +95,7 @@ class UiElement(element: AndroidElement, view: String) {
   var srcView: String = view
   val url = toString
   var clicked = false
+  var willJumpOutOfApp = false
 //  val focusable = element.getAttribute("focusable")=="true"
 
   def click() = {
@@ -111,7 +112,12 @@ class UiElement(element: AndroidElement, view: String) {
 
   def visited: Boolean = clicked
 
-  def visitComplete: Boolean = clicked && !parentView.parent.getNode(destView).visitComplete
+  /**
+    * 如果会跳转到App外, 则视为外部已经访问完全
+    * 如果跳转在App内进行, 则检查目标View上的element是否都已经访问完
+    * @return 跳转去的View上的元素是否已经被访问完全
+    */
+  def destViewVisitComplete: Boolean = willJumpOutOfApp || (clicked && !parentView.parent.getNode(destView).visitComplete)
 
   override def hashCode() = toString.hashCode
   override def equals(obj: Any) = obj match {

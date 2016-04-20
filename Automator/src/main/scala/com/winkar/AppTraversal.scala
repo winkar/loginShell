@@ -83,8 +83,6 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
 
-  def checkCurrentView(expectedView: String) = if (expectedView!=getCurrentView) throw new UnexpectedViewException
-
   def checkAutoChange(currentView: String, currentNode: ViewNode) = {
     val changed = getCurrentView
     if (changed != currentView && !currentNode.hasAlias(changed)) {
@@ -123,7 +121,10 @@ class AppTraversal private[winkar](var appPath: String) {
 //    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
     depth match {
-      case x: Int if x >= maxDepth => log.info("Reach maximum depth; Back")
+      case x: Int if x >= maxDepth =>
+        log.info("Reach maximum depth; Back")
+        // 直接回到上一个View
+        back()
       case _ =>
         var clickableElements = nodeVisited match  {
           case true => currentNode.elements
@@ -148,10 +149,15 @@ class AppTraversal private[winkar](var appPath: String) {
           clickableElements.foreach(element => {
             currentNode.elementsVisited(element) = true
 
+            // If has over-backed
+//            if (!currentNode.hasAlias(getCurrentView)) {
+////              val path = getShortestPath(getCurrentView, currentView)
+//            }
+
             if (element.shouldClick) {
               try {
 
-                if (!element.visited || (element.visited && !element.visitComplete
+                if (!element.visited || (element.visited && !element.destViewVisitComplete
                   && !jumpStack.contains(element.destView))) {
                   log.info("Click " + element.toString)
                   element.click()
@@ -173,6 +179,7 @@ class AppTraversal private[winkar](var appPath: String) {
                         log.info("Jumped out of App")
                         log.info(s"Current at app $pkg")
 
+                        element.willJumpOutOfApp = true
                         if (pkg == "com.sec.android.app.capabilitymanager") checkPermissions()
 
                         log.info("Try back to app")
@@ -193,10 +200,19 @@ class AppTraversal private[winkar](var appPath: String) {
               catch {
                 // UI被改变后可能出现原来的元素无法点击的情况. 跳过并加载新的元素
                 case e: org.openqa.selenium.NoSuchElementException =>
-                  checkCurrentPackage()
-  //                checkCurrentView(expectedView = currentView)
 
-                  checkAutoChange(currentView, currentNode)
+                 // 这个exception会在某个element被点击但不存在的时候出现
+                 // 该被点击的Element在上面已经被标记为visited, 但并未实际访问过
+                 // 因此需要将状态复原
+                  currentNode.elementsVisited(element) = false
+
+                  checkCurrentPackage()
+
+                  // 如果是在App内的某个View, 但不是当前应该在的View, 则跳过当前所有element
+                  // 可能由于上一个element访问后未back到本View导致
+                  if (!currentNode.hasAlias(getCurrentView)) throw new UnexpectedViewException
+
+//                  checkAutoChange(currentView, currentNode)
 
 
                   log.info("Cannot locate element")
@@ -207,6 +223,11 @@ class AppTraversal private[winkar](var appPath: String) {
               }
             }
           })
+
+
+          //某个element点击后没有回到当前View, 同时又没有点击下一个element, 这时就需要专门check一遍是否还在正确的view上, 否则不用back
+          if (currentNode.hasAlias(getCurrentView)) back()
+
         }
         catch {
           case ex: ShouldRestartAppException =>
@@ -214,10 +235,9 @@ class AppTraversal private[winkar](var appPath: String) {
             traversal()
           case ex: UnexpectedViewException =>
             log.info("View changed unexpected")
-            log.info(s"Current view is $currentView")
+            log.info(s"Current view is $getCurrentView")
           // Do nothing but jump out of inner foreach loop
         }
-        back()
     }
   }
 
