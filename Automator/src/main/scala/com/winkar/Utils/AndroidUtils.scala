@@ -1,4 +1,4 @@
-package com.winkar
+package com.winkar.Utils
 
 import scala.sys.process._
 

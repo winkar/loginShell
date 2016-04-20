@@ -1,4 +1,7 @@
 package com.winkar
+
+import com.winkar.Appium.AppiumServer
+
 /**
   * Created by winkar on 16-4-6.
   */

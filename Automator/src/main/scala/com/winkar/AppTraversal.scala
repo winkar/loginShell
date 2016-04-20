@@ -4,6 +4,9 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 import java.nio.file.Paths
 import java.util.Date
 
+import com.winkar.Appium.AppiumAgent
+import com.winkar.Graph.{LoginUI, UiElement, UiGraph, ViewNode}
+import com.winkar.Utils.HierarchyUtil
 import org.apache.log4j.Logger
 import org.openqa.selenium.By
 

@@ -1,4 +1,4 @@
-package com.winkar
+package com.winkar.Utils
 
 /**
   * Created by WinKaR on 16/3/31.

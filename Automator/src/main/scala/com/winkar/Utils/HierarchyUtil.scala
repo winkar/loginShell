@@ -1,6 +1,4 @@
-package com.winkar
-
-
+package com.winkar.Utils
 
 import scala.xml._
 /**

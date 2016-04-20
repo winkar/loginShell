@@ -1,16 +1,13 @@
-package com.winkar
+package com.winkar.Graph
 
-/**
-  * Created by winkar on 16-4-11.
-  */
-
-import java.io.PrintWriter
-
+import com.winkar.Automator
 import org.apache.log4j.Logger
 
 import scala.collection.mutable
 
-
+/**
+  * Created by winkar on 16-4-20.
+  */
 class ViewNode(graph: UiGraph, view: String) {
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
 
@@ -75,43 +72,5 @@ class ViewNode(graph: UiGraph, view: String) {
                       }
       </Edges>
     </Node>
-  }
-}
-
-object ActionType extends Enumeration {
-  val Click, Auto = Value
-}
-
-class ActionEdge(graph: UiGraph, dstView: ViewNode, actionType: ActionType.Value, element: UiElement = null) {
-  val action = actionType
-  val parent = graph
-  def Element = element
-
-  def this(graph: UiGraph, uiElement: UiElement) = this(graph, graph.getNode(uiElement.destView), ActionType.Click, uiElement)
-  val destView = dstView
-}
-
-class UiGraph {
-  val nodes = mutable.Map[String, ViewNode]()
-  val visitCompleteMap = mutable.HashSet[ViewNode]()
-
-
-  def getNode(view: String) = nodes.getOrElseUpdate(view, new ViewNode(this, view))
-
-  def addNode(view: String) = nodes.update(view, new ViewNode(this, view))
-  def addNode(view: String, node: ViewNode) = nodes.update(view, node)
-
-  def toXml = {
-    <UI>
-      {nodes.values.map(_.toXml)}
-    </UI>
-  }
-
-  def saveXml(path: String) = {
-//    xml.XML.save(path, toXml, "UTF-8")
-    val pp = new xml.PrettyPrinter(80, 4)
-    val siteFile = new PrintWriter(path)
-    siteFile.append(pp.format(toXml))
-    siteFile.flush()
   }
 }

@@ -1,7 +1,8 @@
-package com.winkar
+package com.winkar.Appium
 
 import java.io.{FileOutputStream, PrintWriter}
 
+import com.winkar.Automator
 import org.apache.log4j.Logger
 
 import scala.io.Source

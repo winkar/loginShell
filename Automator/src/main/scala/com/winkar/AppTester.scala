@@ -4,6 +4,7 @@ import java.io.{File, PrintWriter, StringWriter}
 import java.nio.file.Paths
 
 import com.github.nscala_time.time.Imports._
+import com.winkar.Utils.{AndroidUtils, LogUtils}
 import org.apache.log4j.Logger
 
 import scala.collection.mutable

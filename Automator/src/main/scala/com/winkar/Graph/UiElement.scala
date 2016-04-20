@@ -1,7 +1,6 @@
-package com.winkar
+package com.winkar.Graph
 
 import io.appium.java_client.android.AndroidElement
-import scala.collection.mutable
 
 
 

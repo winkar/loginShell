@@ -1,8 +1,10 @@
-package com.winkar
+package com.winkar.Appium
 
 import java.net.URL
 import java.nio.file.Paths
 
+import com.winkar.Automator
+import com.winkar.Utils.AndroidUtils
 import io.appium.java_client.android.{AndroidDriver, AndroidElement}
 import org.apache.commons.io.FileUtils
 import org.apache.log4j.Logger

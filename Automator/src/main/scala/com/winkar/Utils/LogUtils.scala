@@ -1,7 +1,8 @@
-package com.winkar
+package com.winkar.Utils
 
 import java.io.{PrintWriter, StringWriter}
 
+import com.winkar.Automator
 import org.apache.log4j.Logger
 
 /**
