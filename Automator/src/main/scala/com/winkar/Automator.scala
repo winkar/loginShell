@@ -4,20 +4,29 @@
 
 package com.winkar
 
+import java.nio.file.Paths
+
+import akka.actor.{ActorRef, ActorSystem, Props}
+import akka.pattern.ask
+import akka.util.Timeout
 import com.winkar.Appium.AppiumServer
 import org.apache.log4j.Logger
 import org.apache.log4j.xml.DOMConfigurator
 import scopt.OptionParser
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
 import scala.xml.XML
+
+case class AutomatorStart(tester: AppTester)
 
 object Automator extends App {
 
-
-
   override def main(args: Array[String]): Unit = {
-    val log: Logger = Logger.getLogger(Automator.getClass.getName)
     DOMConfigurator.configureAndWatch("config/log4j.xml")
+
+    // 如果将getLogger放在configure之前会导致log==null
+    val log: Logger = Logger.getLogger(Automator.getClass.getName)
 
     val parser = new OptionParser[Configure]("Automator") {
       head("Automator", "0.0.1")
@@ -71,39 +80,52 @@ object Automator extends App {
         }
       }
     }
+    // Akka 要求Java8, 否则无法运行
+    val system = ActorSystem("Automator")
+    val appiumServer = new AppiumServer
 
     parser.parse(args, Configure()) match {
       case Some(configure) =>
 
-        val mainTester : AppTester =  if (configure.configFile != null) {
+        val mainTester : ActorRef =  if (configure.configFile != null) {
           val config = XML.loadFile(configure.configFile)
 
           val apkDirectoryRoot = (config\"apkDirectory").text
 
           (config\"mode").text match {
-            case Configure.SingleAppTest => new SingleAppTester(s"$apkDirectoryRoot/${(config\"apkFile").text}")
-            case Configure.MultiAppTest => new MultiAppTester(apkDirectoryRoot)
+            case Configure.SingleAppTest => system.actorOf(Props(new MultiAppTester(Seq(s"$apkDirectoryRoot/${(config\"apkFile").text}"))))
+            case Configure.MultiAppTest => system.actorOf(Props(new MultiAppTester(apkDirectoryRoot)))
           }
         } else {
           configure.mode  match {
-            case Configure.SingleAppTest => new SingleAppTester(configure.apkFile)
-            case Configure.MultiAppTest => new MultiAppTester(configure.apkDirectory)
+            case Configure.SingleAppTest => system.actorOf(Props(new MultiAppTester(Seq(Paths.get(configure.apkDirectory, configure.apkFile).toString))))
+            case Configure.MultiAppTest => system.actorOf(Props(new MultiAppTester(configure.apkFileList)))
           }
         }
 
         GlobalConfig.fast = configure.fast
 
         log.info("Automator test started")
-        val server = new AppiumServer()
-        GlobalConfig.server = server
-        try {
-          mainTester.startTest()
-        } finally  {
-          server.stop()
-        }
+        GlobalConfig.server = appiumServer
+        appiumServer.start()
+
+        // For infinite timeout
+        implicit val timeout = Timeout(200 hours)
+        val future = ask(mainTester, TraversalTestStart).mapTo[TraversalTestDone]
+        Await.result(future, 200 hours)
+        log.info("Automator test Done")
+        system.terminate()
 
       case None =>
         log.info("Invalid command line options")
     }
+
+
+
+
+
   }
+
+
+
 }

@@ -4,25 +4,34 @@ import java.io.{File, IOException, PrintWriter, StringWriter}
 import java.nio.file.Paths
 import java.util.Date
 
+import akka.actor.Actor
 import com.winkar.Appium.AppiumAgent
 import com.winkar.Graph.{LoginUI, UiElement, UiGraph, ViewNode}
-import com.winkar.Utils.HierarchyUtil
+import com.winkar.Utils.{AndroidUtils, HierarchyUtil, LogUtils, Timer}
 import org.apache.log4j.Logger
+import org.joda.time.Period
 import org.openqa.selenium.By
 
 import scala.collection.mutable
 import scala.concurrent._
 
 
+case class StartTravel(apkFilePath: Option[String])
+case class NextApk()
+case class Active()
+case class Done()
+
+
+
 object TravelResult extends Enumeration {
   val Complete, LoginUiFound, Fail = Value
 }
 
-class AppTraversal private[winkar](var appPath: String) {
+case class TravelResult(cost: Period, st: TravelResult.Value, pkgName: String, apkFileName: String)
 
-
-
+class AppTraversal extends Actor {
   var logDir: String = ""
+
   private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
   val maxDepth = 100
@@ -253,14 +262,34 @@ class AppTraversal private[winkar](var appPath: String) {
 
 
   val traversalTimeout = 15
+  val timer = new Timer
 
+  var appPath : String = null
+
+  override def receive: Receive = {
+    case Active =>
+      sender ! NextApk
+    case StartTravel(o_apk: Option[String]) =>
+      o_apk match {
+        case Some(apkFilePath: String) =>
+          timer.start
+          appPath = apkFilePath
+          val travelResult = start()
+          val period = timer.stop
+          sender ! TravelResult(period, travelResult, appPath, appPackage)
+          sender ! NextApk
+        case None =>
+          sender ! Done
+      }
+  }
 
 
   def start(): TravelResult.Value = {
     try {
-      appiumAgent = new AppiumAgent(appPath)
       log.info(s"Start testing apk: $appPath")
-      appPackage = GlobalConfig.currentPackage
+      appPackage = AndroidUtils.getPackageName(appPath)
+      log.info(s"get package name: $appPackage")
+      appiumAgent = new AppiumAgent(appPath)
 
       if (!createLogDir) {
         throw new IOException("Directory not created")
@@ -294,14 +323,10 @@ class AppTraversal private[winkar](var appPath: String) {
         GlobalConfig.server.restart()
         start()
       case e: org.openqa.selenium.WebDriverException =>
-        val sw = new StringWriter
-        e.printStackTrace(new PrintWriter(sw))
-        log.warn(sw.toString)
+        LogUtils.printException(e)
         TravelResult.Fail
       case e: Exception =>
-        val sw = new StringWriter
-        e.printStackTrace(new PrintWriter(sw))
-        log.warn(sw.toString)
+        LogUtils.printException(e)
         TravelResult.Fail
     } finally {
       log.info("Take screenShot on quit")

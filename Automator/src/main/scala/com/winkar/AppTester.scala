@@ -1,20 +1,20 @@
 package com.winkar
 
-import java.io.{File, PrintWriter, StringWriter}
+import java.io.File
 import java.nio.file.Paths
 
-import com.github.nscala_time.time.Imports._
-import com.winkar.Utils.{AndroidUtils, LogUtils}
+import akka.actor.{Actor, ActorRef, Props}
+import com.winkar.Utils.{LogUtils, Timer}
 import org.apache.log4j.Logger
 
 import scala.collection.mutable
 
-trait AppTester {
+trait AppTester extends Actor {
   val log: Logger = LogUtils.getLogger
-  def startTest(): Unit = {
-  }
 }
 
+case class TraversalTestStart()
+case class TraversalTestDone()
 
 
 class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
@@ -24,6 +24,8 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
   val loginFoundAppList = mutable.ListBuffer[String]()
   val totalApkCount = ApkFiles.size
   var totalTimeInSeconds = 0
+  val fullTimer = new Timer
+
 
   def this(apkDirectoryRoot: String) {
     this(
@@ -31,85 +33,73 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
     )
   }
 
-  override def startTest() {
-    val fullTestStartTime = DateTime.now
-    try {
-      for (fullPath <- ApkFiles) {
-        try {
-            val testStartTime = DateTime.now
+  val apkFileIterator = ApkFiles.iterator
 
-            GlobalConfig.currentPackage = AndroidUtils.getPackageName(fullPath)
-
-            val apkFileName = Paths.get(fullPath).getFileName.toString
-
-            if (!GlobalConfig.fast || (GlobalConfig.fast &&
-              !new File(Paths.get("log", GlobalConfig.currentPackage, "site.xml").toString).exists())) {
-              appTested += 1
-              log.info(String.format("Testing apk %s", apkFileName))
-              log.info("Get package Name: " + GlobalConfig.currentPackage)
+  def nextApkFile = {
+    if (apkFileIterator.hasNext) Some(apkFileIterator.next()) else None
+  }
 
 
-              val appTraversal: AppTraversal = new AppTraversal(fullPath)
-              appTraversal.start() match {
-                case TravelResult.Complete =>
-                case TravelResult.Fail =>
-                  failedAppList.append(apkFileName)
-                case TravelResult.LoginUiFound =>
-                  loginFoundAppList.append(apkFileName)
-              }
-              log.info(String.format("Stop testing apk %s", apkFileName))
+  val travelers = {
+    Seq(
+      context.actorOf(Props[AppTraversal])
+    )
+  }
 
-            } else {
-              log.info(s"Site.xml found; Ignore $apkFileName")
-              appIgnored += 1
-            }
+  var travelerNumber = travelers.size
 
-            val testEndTime = DateTime.now
+  var starter: ActorRef = null
 
-            val seconds = org.joda.time.Seconds.secondsBetween(testStartTime, testEndTime).getSeconds
-            totalTimeInSeconds += seconds
-            val averageTime = totalTimeInSeconds.asInstanceOf[Double]/ appTested
+  override def receive: Receive = {
+    case TraversalTestStart =>
+      fullTimer.start
+      starter = sender
+      travelers foreach {
+        _ ! Active
+      }
+    case NextApk =>
+      sender ! StartTravel(nextApkFile)
 
-            log.info(s"$seconds seconds used for $apkFileName")
-            log.info(s"${averageTime.formatted("%.2f")} time cost for each apk in average ")
-            log.info(s"$appTested/$totalApkCount apks already tested")
-            log.info(s"${loginFoundAppList.size} login Ui found")
-            log.info(s"${((totalApkCount - appTested) * averageTime).formatted("%.2f")} seconds remained")
-        } catch {
-          case e: org.openqa.selenium.WebDriverException =>
-            LogUtils.printException(e)
+    case Done =>
+      travelerNumber -= 1
+      if (travelerNumber == 0) {
+        val period = fullTimer.stop
+        log.info("Automator test finish")
+        log.info(s"${period.getHours} hours ${period  .getMinutes} minutes ${period.getSeconds} seconds cost")
+
+        log.info(s"$totalApkCount apps in total  $appTested apps tested, $appIgnored apps ignored, ${failedAppList.size} apps test failed, found ${loginFoundAppList.size} login Ui")
+
+        if (failedAppList.nonEmpty) {
+          log.info("Failed App List")
+          failedAppList.foreach(log.info)
         }
-      }
-    } catch  {
-      case e: Exception =>
-        LogUtils.printException(e)
-    } finally {
-      val fullTestEndTime = DateTime.now
 
-      val fullTimeCost = fullTestStartTime to fullTestEndTime toPeriod
+        if (loginFoundAppList.nonEmpty) {
+          log.info("Login Ui found in Apps: ")
+          loginFoundAppList.foreach(log.info)
+        }
 
-      log.info("Automator test finish")
-      log.info(s"${fullTimeCost.getHours} hours ${fullTimeCost.getMinutes} minutes ${fullTimeCost.getSeconds} seconds cost")
-
-
-      log.info(s"$totalApkCount apps in total  $appTested apps tested, $appIgnored apps ignored, ${failedAppList.size} apps test failed, found ${loginFoundAppList.size} login Ui")
-
-
-      if (failedAppList.nonEmpty) {
-        log.info("Failed App List")
-        failedAppList.foreach(log.info)
+        starter ! TraversalTestDone()
       }
 
+    case TravelResult(cost, status, pkgName, apkFileName) =>
+      appTested += 1
+      val seconds = cost.toStandardSeconds.getSeconds
+      totalTimeInSeconds += seconds
+      val averageTime = totalTimeInSeconds.asInstanceOf[Double]/ appTested
 
-      if (loginFoundAppList.nonEmpty) {
-        log.info("Login Ui found in Apps: ")
-        loginFoundAppList.foreach(log.info)
+      status match {
+        case TravelResult.LoginUiFound => loginFoundAppList.append(apkFileName)
+        case TravelResult.Fail => failedAppList.append(apkFileName)
+        case TravelResult.Complete =>
       }
-    }
+
+      log.info(s"$seconds seconds used for $apkFileName")
+      log.info(s"${averageTime.formatted("%.2f")} time cost for each apk in average ")
+      log.info(s"$appTested/$totalApkCount apks already tested")
+      log.info(s"${loginFoundAppList.size} login Ui found")
+      log.info(s"${((totalApkCount - appTested) * averageTime).formatted("%.2f")} seconds remained")
+
   }
 }
 
-
-class SingleAppTester private[winkar](val apkPath: String) extends AppTester {
-  override def startTest() = new MultiAppTester(Seq(apkPath)).startTest()
-}
