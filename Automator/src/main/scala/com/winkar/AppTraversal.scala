@@ -155,7 +155,6 @@ class AppTraversal extends Actor {
 
                   val viewAfterClick = getCurrentView
                   element.destView = viewAfterClick
-                  currentNode.addEdge(element)
 
                   if (element.destView == lastView) {
                     element.isBack = true
@@ -180,6 +179,9 @@ class AppTraversal extends Actor {
                         checkCurrentPackage()
                       //                      checkCurrentView(expectedView = currentView)
                       case _ =>
+                        // 仅当目标view在app内且非原来View时才将其加入边集中
+                        currentNode.addEdge(element)
+
                         jumpStack.push(currentView)
                         traversal(viewAfterClick)
                         while (jumpStack.top != currentView) jumpStack.pop()
