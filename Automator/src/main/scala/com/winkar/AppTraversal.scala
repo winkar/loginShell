@@ -1,9 +1,5 @@
 package com.winkar
 
-import java.io.{File, IOException, PrintWriter, StringWriter}
-import java.nio.file.Paths
-import java.util.Date
-
 import akka.actor.Actor
 import com.winkar.Appium.AppiumAgent
 import com.winkar.Graph.{LoginUI, UiElement, UiGraph, ViewNode}
@@ -30,7 +26,7 @@ object TravelResult extends Enumeration {
 case class TravelResult(cost: Period, st: TravelResult.Value, pkgName: String, apkFileName: String)
 
 class AppTraversal extends Actor {
-  var logDir: String = ""
+  var screenShotLogDir: String = ""
 
   private var appPackage: String = ""
   private var appiumAgent: AppiumAgent = null
@@ -50,20 +46,12 @@ class AppTraversal extends Actor {
     }
   }
 
-  val uiGraph = new UiGraph()
+  val uiGraph = new UiGraph(appPackage)
 
   class ShouldRestartAppException extends RuntimeException
   class UnexpectedViewException extends RuntimeException
   class LoginUiFoundException(loginUI: String) extends RuntimeException {
     val loginUi = loginUI
-  }
-
-  private def createLogDir: Boolean = {
-    var file: File = null
-    logDir = s"log${File.separator}$appPackage${File.separator}${new Date().toString.replace(' ', '_')}"
-    logDir = Paths.get("log", appPackage, s"${new Date().toString.replace(' ', '_')}").toString
-    file = new File(logDir)
-    file.mkdirs
   }
 
   val elements = mutable.Map[String, UiElement]()
@@ -83,7 +71,6 @@ class AppTraversal extends Actor {
 
   def checkPermissions(): Unit ={
     log.info("Checking All Permissions")
-    // TODO 是否可能默认没有check上?
     log.info("Confirm")
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
   }
@@ -111,7 +98,6 @@ class AppTraversal extends Actor {
       currentNode.addAlias(expectView)
     }
 
-
     val nodeVisited = currentNode.visited
     currentNode.visited = true
 
@@ -125,7 +111,7 @@ class AppTraversal extends Actor {
 
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
-    appiumAgent.takeScreenShot(logDir, currentView)
+    appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
 
 //    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
@@ -144,7 +130,6 @@ class AppTraversal extends Actor {
             elems
         }
 
-        // sort elements to check none clicked elements first
         clickableElements = clickableElements.filter(!_.visited)  ++ clickableElements.filter(_.visited)
 
         log.info(s"${clickableElements.size} clickable elements found on view")
@@ -158,10 +143,6 @@ class AppTraversal extends Actor {
           clickableElements.foreach(element => {
             currentNode.elementsVisited(element) = true
 
-            // If has over-backed
-//            if (!currentNode.hasAlias(getCurrentView)) {
-////              val path = getShortestPath(getCurrentView, currentView)
-//            }
 
             if (element.shouldClick) {
               try {
@@ -291,9 +272,9 @@ class AppTraversal extends Actor {
       log.info(s"get package name: $appPackage")
       appiumAgent = new AppiumAgent(appPath)
 
-      if (!createLogDir) {
-        throw new IOException("Directory not created")
-      }
+      LogUtils.initLogDirectory(appPackage)
+      screenShotLogDir = LogUtils.screenshotLogDir
+
       log.info("Traversal started")
 
       import java.util.concurrent.{Callable, FutureTask, TimeUnit}
@@ -331,8 +312,10 @@ class AppTraversal extends Actor {
     } finally {
       log.info("Take screenShot on quit")
       if (appiumAgent!=null) {
-        appiumAgent.takeScreenShot(logDir, "Quit")
-        uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
+        appiumAgent.takeScreenShot(screenShotLogDir, "Quit")
+        uiGraph.saveXmlAndDotFile(LogUtils.siteXmlPath)
+        import scala.sys.process._
+        s"dot ${LogUtils.packagelogDir}/site.dot -Tpng -o ${LogUtils.packagelogDir}/site.png".!
         log.info("Remove app from device")
         appiumAgent.removeApp(appPackage)
         log.info("Quit")

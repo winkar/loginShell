@@ -13,6 +13,7 @@ class ViewNode(graph: UiGraph, view: String) {
 
   val parent = graph
   def View = view
+  val name = parent.getNewNodeName
 
   val aliasView = mutable.Set[String]()
   aliasView.add(view)
@@ -59,14 +60,15 @@ class ViewNode(graph: UiGraph, view: String) {
 
   def addEdge(edge: ActionEdge) = edges.add(edge)
 
+
   def toXml = {
-    <Node elementCount={elementsVisited.size.toString} depth={depth.toString}>
+    <Node id={name} elementCount={elementsVisited.size.toString} depth={depth.toString}>
       <Views>
         {this.aliasView.map(view => <View>{view}</View>)}
       </Views>
       <Edges>
       {edges.map(edge => <Edge>
-                            <To>{edge.destView.View}</To>
+                            <To>{parent.getNode(edge.destView.View).name}</To>
                             <Click>{edge.Element.toString}</Click>
                         </Edge>)
                       }
