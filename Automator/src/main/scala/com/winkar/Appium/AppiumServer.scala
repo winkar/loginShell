@@ -29,6 +29,7 @@ class AppiumServer {
   }
 
   def restart() = {
+    log.info("Restart Server")
     stop()
     start()
   }
@@ -36,9 +37,9 @@ class AppiumServer {
   def getStatus: String = Source.fromURL("http://127.0.0.1:4723/wd/hub/status").mkString
 
   def checkStatus(): Unit = {
-    try
+    try {
       log.info(getStatus)
-
+    }
     catch {
       case e: java.net.ConnectException =>
         Thread.sleep(1000)
@@ -50,8 +51,8 @@ class AppiumServer {
 
 
   def stop() = {
-    log.info("Appium server stopped")
     server.destroy()
+    log.info("Appium server stopped")
     out.close()
   }
 

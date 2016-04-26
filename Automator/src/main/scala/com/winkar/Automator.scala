@@ -114,18 +114,11 @@ object Automator extends App {
         val future = ask(mainTester, TraversalTestStart).mapTo[TraversalTestDone]
         Await.result(future, 200 hours)
         log.info("Automator test Done")
+        appiumServer.stop()
         system.terminate()
 
       case None =>
         log.info("Invalid command line options")
     }
-
-
-
-
-
   }
-
-
-
 }
