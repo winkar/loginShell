@@ -16,28 +16,30 @@ class AppiumServer {
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val out = new PrintWriter(new FileOutputStream("log/AppiumServer.log", true), true)
 
-  log.info("Starting Appium server")
   var server: Process = null
 
   def start() = {
+    log.info("Starting Appium server")
     server = Process("appium").run(ProcessLogger(
       fout = out println,
       ferr = out println
     ))
+    checkStatus()
+    log.info("Appium Server started")
   }
 
   def restart() = {
+    log.info("Restart Server")
     stop()
     start()
-    checkStatus()
   }
 
   def getStatus: String = Source.fromURL("http://127.0.0.1:4723/wd/hub/status").mkString
 
   def checkStatus(): Unit = {
-    try
+    try {
       log.info(getStatus)
-
+    }
     catch {
       case e: java.net.ConnectException =>
         Thread.sleep(1000)
@@ -45,13 +47,9 @@ class AppiumServer {
     }
   }
 
-  start()
-  checkStatus()
-  log.info("Appium Server started")
-
   def stop() = {
-    log.info("Appium server stopped")
     server.destroy()
+    log.info("Appium server stopped")
     out.close()
   }
 

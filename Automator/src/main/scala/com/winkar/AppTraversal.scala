@@ -1,30 +1,38 @@
 package com.winkar
 
-import java.io.{File, IOException, PrintWriter, StringWriter}
-import java.nio.file.Paths
-import java.util.Date
-
+import akka.actor.Actor
 import com.winkar.Appium.AppiumAgent
 import com.winkar.Graph.{LoginUI, UiElement, UiGraph, ViewNode}
-import com.winkar.Utils.HierarchyUtil
+import com.winkar.Utils.{AndroidUtils, HierarchyUtil, LogUtils, Timer}
 import org.apache.log4j.Logger
+import org.joda.time.Period
 import org.openqa.selenium.By
 
 import scala.collection.mutable
 import scala.concurrent._
 
 
+case class StartTravel(apkFilePath: Option[String])
+case class NextApk()
+case class Active()
+case class Done()
+
+
+
 object TravelResult extends Enumeration {
   val Complete, LoginUiFound, Fail = Value
 }
 
-class AppTraversal private[winkar](var appPath: String) {
+case class TravelResult(cost: Period, st: TravelResult.Value, pkgName: String, apkFileName: String)
+
+class AppTraversal(apkFullPath: String, pkgName: String)  {
+  var screenShotLogDir: String = ""
 
 
-
-  var logDir: String = ""
-  private var appPackage: String = ""
+  val appPath = apkFullPath
+  val appPackage = pkgName
   private var appiumAgent: AppiumAgent = null
+
   val maxDepth = 100
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = mutable.Map[String,Int]()
@@ -41,20 +49,12 @@ class AppTraversal private[winkar](var appPath: String) {
     }
   }
 
-  val uiGraph = new UiGraph()
+  val uiGraph = new UiGraph(appPackage)
 
   class ShouldRestartAppException extends RuntimeException
   class UnexpectedViewException extends RuntimeException
   class LoginUiFoundException(loginUI: String) extends RuntimeException {
     val loginUi = loginUI
-  }
-
-  private def createLogDir: Boolean = {
-    var file: File = null
-    logDir = s"log${File.separator}$appPackage${File.separator}${new Date().toString.replace(' ', '_')}"
-    logDir = Paths.get("log", appPackage, s"${new Date().toString.replace(' ', '_')}").toString
-    file = new File(logDir)
-    file.mkdirs
   }
 
   val elements = mutable.Map[String, UiElement]()
@@ -74,7 +74,6 @@ class AppTraversal private[winkar](var appPath: String) {
 
   def checkPermissions(): Unit ={
     log.info("Checking All Permissions")
-    // TODO 是否可能默认没有check上?
     log.info("Confirm")
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
   }
@@ -102,7 +101,6 @@ class AppTraversal private[winkar](var appPath: String) {
       currentNode.addAlias(expectView)
     }
 
-
     val nodeVisited = currentNode.visited
     currentNode.visited = true
 
@@ -116,7 +114,7 @@ class AppTraversal private[winkar](var appPath: String) {
 
     log.info("Current at " + currentView)
     log.info("Current traversal depth is " + depth)
-    appiumAgent.takeScreenShot(logDir, currentView)
+    appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
 
 //    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
@@ -135,7 +133,6 @@ class AppTraversal private[winkar](var appPath: String) {
             elems
         }
 
-        // sort elements to check none clicked elements first
         clickableElements = clickableElements.filter(!_.visited)  ++ clickableElements.filter(_.visited)
 
         log.info(s"${clickableElements.size} clickable elements found on view")
@@ -149,10 +146,6 @@ class AppTraversal private[winkar](var appPath: String) {
           clickableElements.foreach(element => {
             currentNode.elementsVisited(element) = true
 
-            // If has over-backed
-//            if (!currentNode.hasAlias(getCurrentView)) {
-////              val path = getShortestPath(getCurrentView, currentView)
-//            }
 
             if (element.shouldClick) {
               try {
@@ -164,14 +157,15 @@ class AppTraversal private[winkar](var appPath: String) {
                   lastClickedElement = element
 
                   val viewAfterClick = getCurrentView
+                  val nodeAfterClick = uiGraph.getNode(viewAfterClick)
                   element.destView = viewAfterClick
-                  currentNode.addEdge(element)
 
-                  if (element.destView == lastView) {
+                  if (nodeAfterClick.hasAlias(lastView)) {
                     element.isBack = true
                   }
 
-                  if (viewAfterClick != currentView) {
+                  // 判断是否变换了view应当根据node而非view
+                  if (! currentNode.hasAlias(viewAfterClick)) {
                     log.info("Jumped to view " + viewAfterClick)
 
                     appiumAgent.currentPackage match {
@@ -190,6 +184,9 @@ class AppTraversal private[winkar](var appPath: String) {
                         checkCurrentPackage()
                       //                      checkCurrentView(expectedView = currentView)
                       case _ =>
+                        // 仅当目标view在app内且非原来View时才将其加入边集中
+                        currentNode.addEdge(element)
+
                         jumpStack.push(currentView)
                         traversal(viewAfterClick)
                         while (jumpStack.top != currentView) jumpStack.pop()
@@ -255,16 +252,24 @@ class AppTraversal private[winkar](var appPath: String) {
   val traversalTimeout = 15
 
 
-
   def start(): TravelResult.Value = {
     try {
-      appiumAgent = new AppiumAgent(appPath)
-      log.info(s"Start testing apk: $appPath")
-      appPackage = GlobalConfig.currentPackage
-
-      if (!createLogDir) {
-        throw new IOException("Directory not created")
+    // 如果初始化不了drvier就给我一直重启吧
+      while (appiumAgent == null) {
+        try {
+          appiumAgent = new AppiumAgent(appPath)
+        } catch  {
+          case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
+            GlobalConfig.server.restart()
+        }
       }
+
+      log.info(s"Start testing apk: $appPath")
+      log.info(s"Package name: $appPackage")
+
+      LogUtils.initLogDirectory(appPackage)
+      screenShotLogDir = LogUtils.screenshotLogDir
+
       log.info("Traversal started")
 
       import java.util.concurrent.{Callable, FutureTask, TimeUnit}
@@ -290,29 +295,56 @@ class AppTraversal private[winkar](var appPath: String) {
       case e: TimeoutException =>
         log.warn("Timeout!")
         TravelResult.Fail
-      case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
-        GlobalConfig.server.restart()
-        start()
       case e: org.openqa.selenium.WebDriverException =>
-        val sw = new StringWriter
-        e.printStackTrace(new PrintWriter(sw))
-        log.warn(sw.toString)
+//        LogUtils.printException(e)
+        log.info("Unknown appium exception")
         TravelResult.Fail
       case e: Exception =>
-        val sw = new StringWriter
-        e.printStackTrace(new PrintWriter(sw))
-        log.warn(sw.toString)
+        LogUtils.printException(e)
         TravelResult.Fail
     } finally {
       log.info("Take screenShot on quit")
       if (appiumAgent!=null) {
-        appiumAgent.takeScreenShot(logDir, "Quit")
-        uiGraph.saveXml(s"log${File.separator}$appPackage${File.separator}/site.xml")
+        appiumAgent.takeScreenShot(screenShotLogDir, "Quit")
+        uiGraph.saveXmlAndDotFile(LogUtils.siteXmlPath)
+        import scala.sys.process._
+        s"dot ${LogUtils.packagelogDir}/site.dot -Tpng -o ${LogUtils.packagelogDir}/site.png".!
         log.info("Remove app from device")
         appiumAgent.removeApp(appPackage)
         log.info("Quit")
         appiumAgent.quit()
+        appiumAgent = null
       }
     }
+  }
+}
+
+
+// 之前的写法把多个apk跑在了同一个traveler当中, 已经不能用问题大形容了...各种忘记初始化, 还是分开来简单
+class TravelMonitor extends Actor {
+
+  val timer = new Timer
+
+  override def receive: Receive = {
+    case Active =>
+      sender ! NextApk
+    case StartTravel(o_apk: Option[String]) =>
+      o_apk match {
+        case Some(apkFilePath: String) =>
+          timer.start
+          val packageName = AndroidUtils.getPackageName(apkFilePath)
+          var travelResult: TravelResult.Value = null
+          // 捕捉所有未handle的异常, 一旦产生直接判定为fail(所有appium client的代码应该都在里面了)
+          try {
+            travelResult = new AppTraversal(apkFilePath, packageName).start()
+          } catch {
+            case _: Exception => travelResult =TravelResult.Fail
+          }
+          val period = timer.stop
+          sender ! TravelResult(period, travelResult, apkFilePath, packageName)
+          sender ! NextApk
+        case None =>
+          sender ! Done
+      }
   }
 }
