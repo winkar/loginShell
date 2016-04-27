@@ -25,11 +25,14 @@ object TravelResult extends Enumeration {
 
 case class TravelResult(cost: Period, st: TravelResult.Value, pkgName: String, apkFileName: String)
 
-class AppTraversal extends Actor {
+class AppTraversal(apkFullPath: String, pkgName: String)  {
   var screenShotLogDir: String = ""
 
-  private var appPackage: String = ""
+
+  val appPath = apkFullPath
+  val appPackage = pkgName
   private var appiumAgent: AppiumAgent = null
+
   val maxDepth = 100
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = mutable.Map[String,Int]()
@@ -154,13 +157,15 @@ class AppTraversal extends Actor {
                   lastClickedElement = element
 
                   val viewAfterClick = getCurrentView
+                  val nodeAfterClick = uiGraph.getNode(viewAfterClick)
                   element.destView = viewAfterClick
 
-                  if (element.destView == lastView) {
+                  if (nodeAfterClick.hasAlias(lastView)) {
                     element.isBack = true
                   }
 
-                  if (viewAfterClick != currentView) {
+                  // 判断是否变换了view应当根据node而非view
+                  if (! currentNode.hasAlias(viewAfterClick)) {
                     log.info("Jumped to view " + viewAfterClick)
 
                     appiumAgent.currentPackage match {
@@ -245,34 +250,22 @@ class AppTraversal extends Actor {
 
 
   val traversalTimeout = 15
-  val timer = new Timer
-
-  var appPath : String = null
-
-  override def receive: Receive = {
-    case Active =>
-      sender ! NextApk
-    case StartTravel(o_apk: Option[String]) =>
-      o_apk match {
-        case Some(apkFilePath: String) =>
-          timer.start
-          appPath = apkFilePath
-          val travelResult = start()
-          val period = timer.stop
-          sender ! TravelResult(period, travelResult, appPath, appPackage)
-          sender ! NextApk
-        case None =>
-          sender ! Done
-      }
-  }
 
 
   def start(): TravelResult.Value = {
     try {
+    // 如果初始化不了drvier就给我一直重启吧
+      while (appiumAgent == null) {
+        try {
+          appiumAgent = new AppiumAgent(appPath)
+        } catch  {
+          case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
+            GlobalConfig.server.restart()
+        }
+      }
+
       log.info(s"Start testing apk: $appPath")
-      appPackage = AndroidUtils.getPackageName(appPath)
-      log.info(s"get package name: $appPackage")
-      appiumAgent = new AppiumAgent(appPath)
+      log.info(s"Package name: $appPackage")
 
       LogUtils.initLogDirectory(appPackage)
       screenShotLogDir = LogUtils.screenshotLogDir
@@ -302,11 +295,9 @@ class AppTraversal extends Actor {
       case e: TimeoutException =>
         log.warn("Timeout!")
         TravelResult.Fail
-      case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
-        GlobalConfig.server.restart()
-        start()
       case e: org.openqa.selenium.WebDriverException =>
-        LogUtils.printException(e)
+//        LogUtils.printException(e)
+        log.info("Unknown appium exception")
         TravelResult.Fail
       case e: Exception =>
         LogUtils.printException(e)
@@ -322,7 +313,32 @@ class AppTraversal extends Actor {
         appiumAgent.removeApp(appPackage)
         log.info("Quit")
         appiumAgent.quit()
+        appiumAgent = null
       }
     }
+  }
+}
+
+
+// 之前的写法把多个apk跑在了同一个traveler当中, 已经不能用问题大形容了...各种忘记初始化, 还是分开来简单
+class TravelMonitor extends Actor {
+
+  val timer = new Timer
+
+  override def receive: Receive = {
+    case Active =>
+      sender ! NextApk
+    case StartTravel(o_apk: Option[String]) =>
+      o_apk match {
+        case Some(apkFilePath: String) =>
+          timer.start
+          val packageName = AndroidUtils.getPackageName(apkFilePath)
+          val travelResult = new AppTraversal(apkFilePath, packageName).start()
+          val period = timer.stop
+          sender ! TravelResult(period, travelResult, apkFilePath, packageName)
+          sender ! NextApk
+        case None =>
+          sender ! Done
+      }
   }
 }

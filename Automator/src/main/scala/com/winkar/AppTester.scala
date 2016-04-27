@@ -42,7 +42,7 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
 
   val travelers = {
     Seq(
-      context.actorOf(Props[AppTraversal])
+      context.actorOf(Props[TravelMonitor])
     )
   }
 
@@ -95,7 +95,7 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
       }
 
       log.info(s"$seconds seconds used for $apkFileName")
-      log.info(s"${averageTime.formatted("%.2f")} time cost for each apk in average ")
+      log.info(s"${averageTime.formatted("%.2f")} seconds cost for each apk in average ")
       log.info(s"$appTested/$totalApkCount apks already tested")
       log.info(s"${loginFoundAppList.size} login Ui found")
       log.info(s"${((totalApkCount - appTested) * averageTime).formatted("%.2f")} seconds remained")

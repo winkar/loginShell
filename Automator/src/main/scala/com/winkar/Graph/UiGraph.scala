@@ -10,36 +10,36 @@ import scala.xml.PrettyPrinter
   * Created by winkar on 16-4-20.
   */
 class UiGraph(packageName: String) {
-  val name = packageName
+  def getNewId = {
+    nodeCounter+=1
+    nodeCounter
+  }
+
+  // 点号会造成格式解析错误
+  val name = packageName.replace(".", "_")
   val nodes = mutable.Map[String, ViewNode]()
   val visitCompleteMap = mutable.HashSet[ViewNode]()
 
   var nodeCounter =  0
 
-  /**
-    * 由于一个Node可能对应多个View, 所以在Graph中对Node进行编号作为它们的名字
-    * @return A new Node name
-    */
-  def getNewNodeName = {
-    nodeCounter += 1
-    s"node$nodeCounter"
-  }
 
 
   def getNode(view: String) = nodes.getOrElseUpdate(view, new ViewNode(this, view))
 
   def addNode(view: String) = nodes.update(view, new ViewNode(this, view))
-  def addNode(view: String, node: ViewNode) = nodes.update(view, node)
+  def update(view: String, node: ViewNode) = nodes.update(view, node)
+
 
   def toXml = {
     <UI>
-      {nodes.values.map(_.toXml)}
+      {nodes.values.toSet[ViewNode].map(_.toXml)}
     </UI>
   }
 
   /**
     * 将graph转换成的xml文件写入指定文件
     * 将xml转换成dot写入文件
+    *
     * @param path xml的写入路径
     */
   def saveXmlAndDotFile(path: String) = {

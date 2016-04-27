@@ -13,7 +13,8 @@ class ViewNode(graph: UiGraph, view: String) {
 
   val parent = graph
   def View = view
-  val name = parent.getNewNodeName
+  var id = parent.getNewId
+  val name = s"node$id"
 
   val aliasView = mutable.Set[String]()
   aliasView.add(view)
@@ -36,14 +37,21 @@ class ViewNode(graph: UiGraph, view: String) {
   }
 
   def mergeNode(node: ViewNode) = {
-    if (node.depth < this.depth) {
+    // node 有可能为getNode产生的新Node, 此时node的depth为-1
+    if (node.depth != -1 && node.depth < this.depth) {
       this.depth = node.depth
+    }
+
+    if ( node.id < this.id) {
+      this.id = node.id
     }
 
     node.aliasView.foreach(v => {
       this.aliasView.add(v)
-      parent.addNode(v, this)
+      parent.update(v, this)
     })
+
+    //不需要专门删除原来的node, 因为已经没有reference指向它(理论上应该是这样的吧?)
   }
 
   def addAlias(view: String) = {
