@@ -333,7 +333,13 @@ class TravelMonitor extends Actor {
         case Some(apkFilePath: String) =>
           timer.start
           val packageName = AndroidUtils.getPackageName(apkFilePath)
-          val travelResult = new AppTraversal(apkFilePath, packageName).start()
+          var travelResult: TravelResult.Value = null
+          // 捕捉所有未handle的异常, 一旦产生直接判定为fail(所有appium client的代码应该都在里面了)
+          try {
+            travelResult = new AppTraversal(apkFilePath, packageName).start()
+          } catch {
+            case _: Exception => travelResult =TravelResult.Fail
+          }
           val period = timer.stop
           sender ! TravelResult(period, travelResult, apkFilePath, packageName)
           sender ! NextApk
