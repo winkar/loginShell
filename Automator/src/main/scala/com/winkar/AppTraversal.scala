@@ -125,6 +125,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
     }
 
     log.info("Current at " + currentView)
+    log.info(s"Current at node${currentNode.id}")
     log.info("Current traversal depth is " + depth)
     appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
 
@@ -171,12 +172,9 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
                   lastClickedElement = element
 
                   val viewAfterClick = getCurrentView
-                  val nodeAfterClick = uiGraph.getNode(viewAfterClick)
                   element.destView = viewAfterClick
 
-                  if (nodeAfterClick.hasAlias(lastView)) {
-                    element.isBack = true
-                  }
+
 
                   // 判断是否变换了view应当根据node而非view
                   if (! currentNode.hasAlias(viewAfterClick)) {
@@ -198,7 +196,13 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
                         checkCurrentPackage()
                       //                      checkCurrentView(expectedView = currentView)
                       case _ =>
-                        // 仅当目标view在app内且非原来View时才将其加入边集中
+                        // 仅当目标view在app内且非原来View时才将其加入图中
+
+                      val nodeAfterClick = uiGraph.getNode(viewAfterClick)
+                        if (nodeAfterClick.hasAlias(lastView)) {
+                          element.isBack = true
+                        }
+
                         currentNode.addEdge(element)
 
                         jumpStack.push(currentView)

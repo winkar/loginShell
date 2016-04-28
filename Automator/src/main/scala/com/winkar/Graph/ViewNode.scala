@@ -39,6 +39,9 @@ class ViewNode(graph: UiGraph, view: String) {
 
   def mergeNode(node: ViewNode) = {
     // node 有可能为getNode产生的新Node, 此时node的depth为-1
+
+    log.info(s"Merge node${node.id} into node$id")
+
     if (node.depth != -1 && node.depth < this.depth) {
       this.depth = node.depth
     }
@@ -76,7 +79,7 @@ class ViewNode(graph: UiGraph, view: String) {
         {this.aliasView.map(view => <View>{view}</View>)}
       </Views>
       <Edges>
-      {edges.map(edge => <Edge>
+      {edges.filter(edge => !edge.Element.willJumpOutOfApp).map(edge => <Edge>
                             <To>{parent.getNode(edge.destView.View).name}</To>
                             <Click>{edge.Element.toString}</Click>
                         </Edge>)
