@@ -1,6 +1,7 @@
 package com.winkar.Graph
 
 import com.winkar.Automator
+import com.winkar.Utils.LogUtils
 import org.apache.log4j.Logger
 
 import scala.collection.mutable

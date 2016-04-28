@@ -23,8 +23,9 @@ case class AutomatorStart(tester: AppTester)
 object Automator extends App {
 
   override def main(args: Array[String]): Unit = {
-    DOMConfigurator.configureAndWatch("config/log4j.xml")
 
+    System.setProperty("log_home", "log")
+    DOMConfigurator.configureAndWatch("config/log4j.xml")
     // 如果将getLogger放在configure之前会导致log==null
     val log: Logger = Logger.getLogger(Automator.getClass.getName)
 

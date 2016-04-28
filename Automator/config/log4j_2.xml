@@ -7,17 +7,8 @@
         </layout>
     </appender>
 
-    <appender name="logfile" class="org.apache.log4j.DailyRollingFileAppender">
-        <param name="File" value="${log_home}/log.out"/>
-        <param name="Append" value="true"/>
-        <param name="DatePattern" value="'.'yyyy-MM-dd"/>
-        <layout class="org.apache.log4j.PatternLayout">
-            <param name="ConversionPattern" value="%-d{yyyy-MM-dd HH:mm:ss} [%p] %m%n"/>
-        </layout>
-    </appender>
     <root>
         <priority value="info"/>
         <appender-ref ref="CONSOLE"/>
-        <appender-ref ref="logfile"/>
     </root>
 </log4j:configuration>

@@ -1,10 +1,12 @@
 package com.winkar
 
+import java.io._
+
 import akka.actor.Actor
 import com.winkar.Appium.AppiumAgent
 import com.winkar.Graph.{LoginUI, UiElement, UiGraph, ViewNode}
 import com.winkar.Utils.{AndroidUtils, HierarchyUtil, LogUtils, Timer}
-import org.apache.log4j.Logger
+import org.apache.log4j._
 import org.joda.time.Period
 import org.openqa.selenium.By
 
@@ -36,6 +38,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
   val maxDepth = 100
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
   val depthMap = mutable.Map[String,Int]()
+  val pageSourceMap = mutable.Set[String]()
 
   var lastClickedElement : UiElement = null
 
@@ -49,7 +52,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
     }
   }
 
-  val uiGraph = new UiGraph(appPackage)
+  val uiGraph = new UiGraph(appPackage, appPath)
 
   class ShouldRestartAppException extends RuntimeException
   class UnexpectedViewException extends RuntimeException
@@ -91,6 +94,8 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
     }
   }
 
+  var loginUiFound = false
+
   def traversal(expectView: String = null) {
     val currentView = getCurrentView
     val currentNode = uiGraph.getNode(currentView)
@@ -100,6 +105,13 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
       log.info(s"Automated changed to view: $currentView; Add alias")
       currentNode.addAlias(expectView)
     }
+
+    if (!pageSourceMap.contains(currentView)) {
+      LogUtils.logLayout(currentView, appiumAgent.driver.getPageSource)
+      pageSourceMap.add(currentView)
+      checkAutoChange(currentView, currentNode)
+    }
+
 
     val nodeVisited = currentNode.visited
     currentNode.visited = true
@@ -139,7 +151,9 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
 
 
         if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
-          throw new LoginUiFoundException(currentView)
+//          throw new LoginUiFoundException(currentView)
+          loginUiFound = true
+          log.warn(s"Login Ui Found: $currentView in package ${this.appPackage} at $appPath")
         }
 
         try {
@@ -228,6 +242,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
         }
         catch {
           case ex: ShouldRestartAppException =>
+            log.warn("ShouldRestartApp")
             restartApp()
             traversal()
           case ex: UnexpectedViewException =>
@@ -252,23 +267,29 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
   val traversalTimeout = 15
 
 
+  def initAppiumAgent(): Unit = {
+    try {
+      appiumAgent = new AppiumAgent(appPath)
+    } catch {
+      case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
+        GlobalConfig.server.restart()
+        Thread.sleep(5000)
+        initAppiumAgent()
+    }
+
+  }
+
+
   def start(): TravelResult.Value = {
     try {
-    // 如果初始化不了drvier就给我一直重启吧
-      while (appiumAgent == null) {
-        try {
-          appiumAgent = new AppiumAgent(appPath)
-        } catch  {
-          case _: org.openqa.selenium.SessionNotCreatedException | _:org.openqa.selenium.remote.UnreachableBrowserException =>
-            GlobalConfig.server.restart()
-        }
-      }
-
       log.info(s"Start testing apk: $appPath")
       log.info(s"Package name: $appPackage")
 
-      LogUtils.initLogDirectory(appPackage)
-      screenShotLogDir = LogUtils.screenshotLogDir
+    // 如果初始化不了drvier就给我一直重启吧
+      initAppiumAgent()
+
+
+      screenShotLogDir = LogUtils.caseLogDir
 
       log.info("Traversal started")
 
@@ -286,7 +307,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
         case e: java.util.concurrent.ExecutionException =>
           throw e.getCause
       }
-      TravelResult.Complete
+      if (loginUiFound) TravelResult.LoginUiFound else TravelResult.Complete
     }
     catch {
       case e: LoginUiFoundException =>
@@ -296,8 +317,8 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
         log.warn("Timeout!")
         TravelResult.Fail
       case e: org.openqa.selenium.WebDriverException =>
-//        LogUtils.printException(e)
-        log.info("Unknown appium exception")
+        LogUtils.printException(e)
+        log.error("Unknown appium exception")
         TravelResult.Fail
       case e: Exception =>
         LogUtils.printException(e)
@@ -323,6 +344,9 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
 // 之前的写法把多个apk跑在了同一个traveler当中, 已经不能用问题大形容了...各种忘记初始化, 还是分开来简单
 class TravelMonitor extends Actor {
 
+  val log = LogUtils.getLogger
+
+
   val timer = new Timer
 
   override def receive: Receive = {
@@ -331,8 +355,19 @@ class TravelMonitor extends Actor {
     case StartTravel(o_apk: Option[String]) =>
       o_apk match {
         case Some(apkFilePath: String) =>
-          timer.start
           val packageName = AndroidUtils.getPackageName(apkFilePath)
+          LogUtils.initLogDirectory(packageName)
+
+          // 初始化WriterAppender, 将这段log发送往指定文件
+          val writer: Writer = new PrintWriter(LogUtils.caseLogPath)
+          val appender = new WriterAppender(new PatternLayout("%-d{yyyy-MM-dd HH:mm:ss} [%p] %m%n"), writer)
+          appender.setName(packageName)
+          appender.setImmediateFlush(true)
+          log.addAppender(appender)
+
+
+          timer.start
+
           var travelResult: TravelResult.Value = null
           // 捕捉所有未handle的异常, 一旦产生直接判定为fail(所有appium client的代码应该都在里面了)
           try {
@@ -341,6 +376,12 @@ class TravelMonitor extends Actor {
             case _: Exception => travelResult =TravelResult.Fail
           }
           val period = timer.stop
+
+
+          //重新去除appender
+          log.removeAppender(appender)
+          writer.flush()
+          writer.close()
           sender ! TravelResult(period, travelResult, apkFilePath, packageName)
           sender ! NextApk
         case None =>
