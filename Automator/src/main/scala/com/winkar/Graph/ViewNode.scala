@@ -35,7 +35,7 @@ class ViewNode(graph: UiGraph, view: String) {
 
   def addElement(uiElement: UiElement) = {
     elementsVisited.update(uiElement, false)
-    uiElement.parentView = this
+    uiElement.parentNode = this
   }
 
   def mergeNode(node: ViewNode) = {

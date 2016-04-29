@@ -26,7 +26,6 @@ class UiGraph(packageName: String, apkPath: String) {
   var nodeCounter =  0
 
 
-
   def getNode(view: String) = nodes.getOrElseUpdate(view, new ViewNode(this, view))
 
   def addNode(view: String) = nodes.update(view, new ViewNode(this, view))
@@ -35,7 +34,7 @@ class UiGraph(packageName: String, apkPath: String) {
 
   def toXml = {
     <UI path={ApkPath}>
-      {nodes.values.toSet[ViewNode].map(_.toXml)}
+      {nodes.values.toSet[ViewNode].filter(_.View != null).map(_.toXml)}
     </UI>
   }
 

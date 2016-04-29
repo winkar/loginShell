@@ -54,7 +54,7 @@ object UiElement {
   )
 }
 
-class UiElement(element: AndroidElement, view: String) {
+class UiElement(element: AndroidElement) {
   var androidElement: AndroidElement = element
 
   object Importance {
@@ -78,7 +78,7 @@ class UiElement(element: AndroidElement, view: String) {
 
   val contentDesc: String = element.getAttribute("name")
 
-  var parentView: ViewNode = null
+  var parentNode: ViewNode = null
 
 
   var willChangeCurrentUI: Boolean = false
@@ -92,7 +92,6 @@ class UiElement(element: AndroidElement, view: String) {
   val inBlackList : Boolean = List(resourceId, text, contentDesc).exists(isInBlackList)
 
   var destView: String = null
-  var srcView: String = view
   val url = toString
   var clicked = false
   var willJumpOutOfApp = false
@@ -109,16 +108,17 @@ class UiElement(element: AndroidElement, view: String) {
 
   def shouldClick: Boolean = !inBlackList && !isBack && validTag &&     //Valid Check
     element.isDisplayed &&  // Display Check
-    destView != srcView // Route Check
+    !parentNode.hasAlias(destView) // Route Check
 
   def visited: Boolean = clicked
 
   /**
     * 如果会跳转到App外, 则视为外部已经访问完全
     * 如果跳转在App内进行, 则检查目标View上的element是否都已经访问完
+ *
     * @return 跳转去的View上的元素是否已经被访问完全
     */
-  def destViewVisitComplete: Boolean = willJumpOutOfApp || parentView.parent.getNode(destView).visitComplete
+  def destViewVisitComplete: Boolean = willJumpOutOfApp || parentNode.parent.getNode(destView).visitComplete
 
   override def hashCode() = toString.hashCode
   override def equals(obj: Any) = obj match {

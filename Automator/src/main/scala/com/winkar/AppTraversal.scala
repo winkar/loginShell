@@ -68,7 +68,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
   @scala.annotation.tailrec
   final def getClickableElements(view: String, retryTime :Int = 1): List[UiElement] = {
     appiumAgent.findElements(By.xpath("//*[@clickable='true']"))
-        .map(new UiElement(_, view)) match {
+        .map(new UiElement(_)) match {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
@@ -282,6 +282,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
                   log.info("Reload clickable elements")
                   clickableElements = getClickableElements(currentView  )
                   currentNode.addAllElement(clickableElements)
+                  checkAutoChange(currentView, currentNode)
                   log.info(s"${clickableElements.size} elements found")
               }
             }
