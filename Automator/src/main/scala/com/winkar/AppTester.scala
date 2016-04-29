@@ -14,7 +14,7 @@ trait AppTester extends Actor {
 }
 
 case class TraversalTestStart()
-case class TraversalTestDone()
+case class TraversalTestDone(testedApkNumber: Int)
 
 
 class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
@@ -79,7 +79,7 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
           loginFoundAppList.foreach(log.info)
         }
 
-        starter ! TraversalTestDone()
+        starter ! TraversalTestDone(appTested)
       }
 
     case TravelResult(cost, status, pkgName, apkFileName) =>
