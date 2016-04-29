@@ -16,6 +16,7 @@ class ViewNode(graph: UiGraph, view: String) {
   def View = view
   var id = parent.getNewId
   val name = s"node$id"
+  var shouldWait = false
 
   val aliasView = mutable.Set[String]()
   aliasView.add(view)
@@ -40,7 +41,7 @@ class ViewNode(graph: UiGraph, view: String) {
   def mergeNode(node: ViewNode) = {
     // node 有可能为getNode产生的新Node, 此时node的depth为-1
 
-    log.info(s"Merge node${node.id} into node$id")
+    log.info(s"Merge node${node.id} and node$id")
 
     if (node.depth != -1 && node.depth < this.depth) {
       this.depth = node.depth

@@ -3,17 +3,20 @@ package com.winkar.Graph
 import java.io.PrintWriter
 
 import com.winkar.Utils.LogUtils
+
 import scala.collection.mutable
 import scala.xml.PrettyPrinter
 
 /**
   * Created by winkar on 16-4-20.
   */
-class UiGraph(packageName: String) {
+class UiGraph(packageName: String, apkPath: String) {
   def getNewId = {
     nodeCounter+=1
     nodeCounter
   }
+
+  val ApkPath = apkPath
 
   // 点号会造成格式解析错误
   val name = packageName.replace(".", "_")
@@ -31,7 +34,7 @@ class UiGraph(packageName: String) {
 
 
   def toXml = {
-    <UI>
+    <UI path={ApkPath}>
       {nodes.values.toSet[ViewNode].map(_.toXml)}
     </UI>
   }

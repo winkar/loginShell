@@ -14,12 +14,13 @@ import scala.sys.process._
 class AppiumServer {
 
   val log: Logger = Logger.getLogger(Automator.getClass.getName)
-  val out = new PrintWriter(new FileOutputStream("log/AppiumServer.log", true), true)
+  var out: PrintWriter = null
 
   var server: Process = null
 
   def start() = {
     log.info("Starting Appium server")
+    out = new PrintWriter(new FileOutputStream("log/AppiumServer.log", true), true)
     server = Process("appium").run(ProcessLogger(
       fout = out println,
       ferr = out println

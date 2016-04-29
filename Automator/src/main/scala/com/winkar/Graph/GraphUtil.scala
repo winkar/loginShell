@@ -34,7 +34,7 @@ object GraphUtil {
 //        val viewTr = s"<tr><td>Views</td>\n<td>${(node \\ "View").map(_.text).mkString("\n")}</td></tr>\n"
 
         // 愚蠢的Scala不同时支持字符串内插和双引号转义, Ruby大法好, 天诛Scala
-        val imageTr = String.format("<tr><td width=\"250\" height=\"400\" fixedsize=\"true\"><img scale=\"true\" src=\"%s.png\"></img></td></tr>", Paths.get(LogUtils.screenshotLogDir, nodeName).toAbsolutePath.toString)
+        val imageTr = String.format("<tr><td width=\"250\" height=\"400\" fixedsize=\"true\"><img scale=\"true\" src=\"%s.png\"></img></td></tr>", Paths.get(LogUtils.caseLogDir, nodeName).toAbsolutePath.toString)
 
 //        sb.append(elementCountTr)
 //        sb.append(depthTr)

@@ -31,6 +31,8 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
   var screenShotLogDir: String = ""
 
 
+  def getActivityName(view: String) = view.split("_").dropRight(1).mkString("")
+
   val appPath = apkFullPath
   val appPackage = pkgName
   private var appiumAgent: AppiumAgent = null
@@ -70,6 +72,8 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
       case cl: List[UiElement] if retryTime==0 || cl.nonEmpty => cl
       case cl: List[UiElement] if cl.isEmpty  =>
         log.info("Cannot find any element; Sleep and try again")
+        // 如果上一次find elements时是需要wait的, 那么这次应当也要, 否则会导致无法点击
+        uiGraph.getNode(view).shouldWait = true
         Thread.sleep(3000)
         getClickableElements(view, 0)
     }
@@ -81,29 +85,71 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
     appiumAgent.driver.findElementByClassName("android.widget.Button").click()
   }
 
-  def getCurrentView: String = s"${appiumAgent.driver.currentActivity}_${HierarchyUtil.uiStructureHashDigest(appiumAgent.driver.getPageSource)}"
+  def getCurrentView: String = {
+    try {
+      s"${appiumAgent.driver.currentActivity}_${HierarchyUtil.uiStructureHashDigest(appiumAgent.driver.getPageSource)}"
+    } catch {
+      case e: NullPointerException => throw new ShouldRestartAppException
+    }
+  }
+  def checkCurrentPackage() =  {
+    while (AndroidUtils.getCurrentPackage() == "com.sec.android.app.capabilitymanager") checkPermissions()
+    if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
+  }
 
-  def checkCurrentPackage() = if (appiumAgent.currentPackage != appPackage) throw new ShouldRestartAppException
+
+
 
   def checkAutoChange(currentView: String, currentNode: ViewNode) = {
     val changed = getCurrentView
     if (changed != currentView && !currentNode.hasAlias(changed)) {
       val changed = getCurrentView
-      log.info(s"Automated changed to view: $changed; Add alias")
-      currentNode.addAlias(changed)
+      log.info(s"Automated changed to view: $changed")
+
+      // 仅当两边Activity相同时才合并
+      if (getActivityName(changed) == getActivityName(currentView)) {
+        currentNode.addAlias(changed)
+      } else {
+        setCurrentViewAndNode(currentNode.depth)
+      }
     }
   }
 
   var loginUiFound = false
+  var currentView: String = null
+  var currentNode: ViewNode = null
+
+
+  def setCurrentViewAndNode(originDepth: Int) = {
+    currentView = getCurrentView
+    currentNode = uiGraph.getNode(currentView)
+    currentNode.depth match {
+      case -1 =>
+        currentNode.depth = originDepth + 1
+      case _: Int  =>
+    }
+    appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
+    log.info("Current at " + currentView)
+    log.info(s"Current at node${currentNode.id}")
+    log.info("Current traversal depth is " + currentNode.depth)
+  }
 
   def traversal(expectView: String = null) {
-    val currentView = getCurrentView
-    val currentNode = uiGraph.getNode(currentView)
+    currentView = getCurrentView
+    currentNode = uiGraph.getNode(currentView)
+
+    //说出来你可能不信, 真的有一开始就不在里面的App....
+    if (AndroidUtils.getCurrentPackage()!= appPackage) {
+      return
+    }
+
 //    val depth = depthMap.getOrElseUpdate(currentView, currentDepth)
 
     if (expectView!=null  && currentView != expectView) {
       log.info(s"Automated changed to view: $currentView; Add alias")
-      currentNode.addAlias(expectView)
+      if (getActivityName(expectView) == getActivityName(currentView)) {
+        currentNode.addAlias(expectView)
+      }
     }
 
     if (!pageSourceMap.contains(currentView)) {
@@ -117,29 +163,30 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
     currentNode.visited = true
 
 
-    val depth = currentNode.depth match {
+    currentNode.depth match {
       case -1 =>
         currentNode.depth = if (lastView != "") uiGraph.getNode(lastView).depth + 1 else 0
-        currentNode.depth
-      case d: Int  => d
+      case _: Int  =>
     }
 
     log.info("Current at " + currentView)
     log.info(s"Current at node${currentNode.id}")
-    log.info("Current traversal depth is " + depth)
-    appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
+    log.info("Current traversal depth is " + currentNode.depth)
 
 //    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
-    depth match {
+    currentNode.depth match {
       case x: Int if x >= maxDepth =>
         log.info("Reach maximum depth; Back")
         // 直接回到上一个View
         back()
       case _ =>
         var clickableElements = nodeVisited match  {
-          case true => currentNode.elements
+          case true =>
+            if (currentNode.shouldWait) Thread.sleep(3000)
+            currentNode.elements
           case false =>
+            appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
             val elems: List[UiElement] = getClickableElements(currentView)
             checkAutoChange(currentView, currentNode)
             currentNode.addAllElement(elems)
@@ -151,9 +198,10 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
         log.info(s"${clickableElements.size} clickable elements found on view")
 
 
-        if (LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
+        if (!loginUiFound && LoginUI.isLoginUI(lastClickedElement, clickableElements, currentView)) {
 //          throw new LoginUiFoundException(currentView)
           loginUiFound = true
+          appiumAgent.takeScreenShot(screenShotLogDir, "Login")
           log.warn(s"Login Ui Found: $currentView in package ${this.appPackage} at $appPath")
         }
 
@@ -207,7 +255,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
 
                         jumpStack.push(currentView)
                         traversal(viewAfterClick)
-                        while (jumpStack.top != currentView) jumpStack.pop()
+                        while (jumpStack.nonEmpty && jumpStack.top != currentView) jumpStack.pop()
                     }
                   }
                 }
