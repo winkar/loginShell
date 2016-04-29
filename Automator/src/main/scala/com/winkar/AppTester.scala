@@ -25,7 +25,7 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
   val totalApkCount = ApkFiles.size
   var totalTimeInSeconds = 0
   val fullTimer = new Timer
-
+  var loginUiFoundAppTimeCost = 0
 
   def this(apkDirectoryRoot: String) {
     this(
@@ -89,15 +89,20 @@ class MultiAppTester(ApkFiles: Seq[String]) extends AppTester {
       val averageTime = totalTimeInSeconds.asInstanceOf[Double]/ appTested
 
       status match {
-        case TravelResult.LoginUiFound => loginFoundAppList.append(apkFileName)
+        case TravelResult.LoginUiFound =>
+          loginFoundAppList.append(apkFileName)
+          loginUiFoundAppTimeCost += seconds
         case TravelResult.Fail => failedAppList.append(apkFileName)
         case TravelResult.Complete =>
       }
+
+      val loginUiFoundAppAverageTime = loginUiFoundAppTimeCost.asInstanceOf[Double] / loginFoundAppList.size
 
       log.info(s"$seconds seconds used for $apkFileName")
       log.info(s"${averageTime.formatted("%.2f")} seconds cost for each apk in average ")
       log.info(s"$appTested/$totalApkCount apks already tested")
       log.info(s"${loginFoundAppList.size} login Ui found")
+      log.info(s"${loginUiFoundAppAverageTime.formatted("%.2f")} seconds cost for each apps in which login ui found ")
       log.info(s"${((totalApkCount - appTested) * averageTime).formatted("%.2f")} seconds remained")
 
   }
