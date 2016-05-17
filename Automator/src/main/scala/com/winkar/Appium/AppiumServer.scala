@@ -49,7 +49,9 @@ class AppiumServer {
   }
 
   def stop() = {
-    server.destroy()
+    if (server!=null) {
+      server.destroy()
+    }
     log.info("Appium server stopped")
     out.close()
   }

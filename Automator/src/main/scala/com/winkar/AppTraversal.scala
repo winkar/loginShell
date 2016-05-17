@@ -137,6 +137,17 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
   def traversal(expectView: String = null) {
     currentView = getCurrentView
     currentNode = uiGraph.getNode(currentView)
+    appiumAgent.takeScreenShot(screenShotLogDir, currentNode.name)
+
+    currentNode.depth match {
+      case -1 =>
+        currentNode.depth = if (lastView != "") uiGraph.getNode(lastView).depth + 1 else 0
+      case _: Int  =>
+    }
+
+    log.info("Current at " + currentView)
+    log.info(s"Current at node${currentNode.id}")
+    log.info("Current traversal depth is " + currentNode.depth)
 
     //说出来你可能不信, 真的有一开始就不在里面的App....
     if (AndroidUtils.getCurrentPackage()!= appPackage) {
@@ -154,6 +165,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
 
     if (!pageSourceMap.contains(currentView)) {
       LogUtils.logLayout(currentView, appiumAgent.driver.getPageSource)
+      appiumAgent.takeScreenShot(screenShotLogDir, currentView)
       pageSourceMap.add(currentView)
       checkAutoChange(currentView, currentNode)
     }
@@ -163,15 +175,7 @@ class AppTraversal(apkFullPath: String, pkgName: String)  {
     currentNode.visited = true
 
 
-    currentNode.depth match {
-      case -1 =>
-        currentNode.depth = if (lastView != "") uiGraph.getNode(lastView).depth + 1 else 0
-      case _: Int  =>
-    }
 
-    log.info("Current at " + currentView)
-    log.info(s"Current at node${currentNode.id}")
-    log.info("Current traversal depth is " + currentNode.depth)
 
 //    log.info(xml.XML.loadString(appiumAgent.driver.getPageSource))
 
@@ -426,7 +430,9 @@ class TravelMonitor extends Actor {
           try {
             travelResult = new AppTraversal(apkFilePath, packageName).start()
           } catch {
-            case _: Exception => travelResult =TravelResult.Fail
+            case e: Exception =>
+              LogUtils.printException(e)
+              travelResult =TravelResult.Fail
           }
           val period = timer.stop
 
